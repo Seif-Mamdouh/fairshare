@@ -77,13 +77,13 @@ export function equalSplit(amount: number, ids: string[]): Split[] {
       Math.floor(amount / ids.length) + (i < amount % ids.length ? 1 : 0),
   }));
 }
-export function parseMoney(value: string): number {
+export function parseMoney(value: string, allowZero = false): number {
   if (!/^\d+(\.\d{1,2})?$/.test(value.trim()))
     throw new Error("Enter an amount with up to two decimal places");
   const [whole, fraction = ""] = value.trim().split(".");
   const result = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  if (!Number.isSafeInteger(result) || result <= 0 || result > 100_000_000)
-    throw new Error("Amount must be between 0.01 and 1,000,000");
+  if (!Number.isSafeInteger(result) || result < (allowZero ? 0 : 1) || result > 100_000_000)
+    throw new Error(`Amount must be between ${allowZero ? "0" : "0.01"} and 1,000,000`);
   return result;
 }
 export function balances(

@@ -11,6 +11,9 @@ import {
 test("money stays exact and rejects ambiguous input", () => {
   assert.equal(parseMoney("0.29"), 29);
   assert.equal(parseMoney("12.3"), 1230);
+  assert.equal(parseMoney("0.00", true), 0);
+  assert.equal(parseMoney("0", true), 0);
+  assert.throws(() => parseMoney("", true));
   for (const v of ["1.005", "-2", "NaN", "1e3", "0", "1,000", "1000001"])
     assert.throws(() => parseMoney(v));
 });

@@ -239,9 +239,7 @@ export default function App() {
         : form.participants.map((memberId: string) => ({
             memberId,
             amountMinor:
-              form.exact[memberId] === "0"
-                ? 0
-                : parseMoney(form.exact[memberId] || "0"),
+              parseMoney(form.exact[memberId] || "", true),
           }));
     return {
       title: form.title,
