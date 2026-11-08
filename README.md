@@ -1,5 +1,7 @@
 # Fairshare
 
+[Open the live app](https://fairshare-five-chi.vercel.app) · [Deployment and verification](docs/DEPLOYMENT.md)
+
 An Expo + TypeScript expense-sharing app for people and their agents. The web client and Node API deploy together on Vercel; production data lives in Neon PostgreSQL. The same React Native UI remains compatible with native Expo builds.
 
 ## Run locally

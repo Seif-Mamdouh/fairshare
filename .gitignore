@@ -2,7 +2,7 @@ node_modules/
 dist/
 .expo/
 .vercel/
-.env
-.env.local
+.env*
+!.env.example
 work/
 *.log
