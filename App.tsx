@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,22 @@ import {
   Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import Feather from "@expo/vector-icons/Feather";
+import * as Linking from "expo-linking";
+import { C, icon, Button, Field, Pills, Card, Tag } from "./client/components";
+import { AgentSetup } from "./client/AgentSetup";
+import {
+  appOrigin,
+  copyText,
+  shareInvite,
+  initialInvite,
+  rememberInvite,
+  forgetInvite,
+} from "./client/invitations";
+import {
+  inviteTokenFrom,
+  inviteLink,
+  agentConnectionLabel,
+} from "./shared/onboarding";
 import * as ImagePicker from "expo-image-picker";
 import { api, saveSession, clearSession, restoreSession } from "./client/api";
 import {
@@ -24,17 +39,6 @@ import {
   categories,
   type ExpenseInput,
 } from "./shared/domain";
-const C = {
-  bg: "#F6F7F3",
-  paper: "#FFFFFF",
-  ink: "#202A25",
-  muted: "#737D75",
-  line: "#E3E7DF",
-  green: "#216E4E",
-  lime: "#D9ED9A",
-  pale: "#EDF4E6",
-  red: "#B04738",
-};
 const today = () => {
   const d = new Date();
   return [
@@ -43,97 +47,6 @@ const today = () => {
     String(d.getDate()).padStart(2, "0"),
   ].join("-");
 };
-const icon = (name: any, size = 18, color = C.ink) => (
-  <Feather name={name} size={size} color={color} />
-);
-function Button({
-  label,
-  onPress,
-  secondary = false,
-  disabled = false,
-  small = false,
-}: any) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        s.button,
-        secondary && s.secondary,
-        small && { paddingVertical: 10, paddingHorizontal: 14 },
-        (pressed || disabled) && { opacity: 0.6 },
-      ]}
-    >
-      <Text style={[s.buttonText, secondary && { color: C.ink }]}>{label}</Text>
-    </Pressable>
-  );
-}
-function Field({ label, value, onChangeText, ...props }: any) {
-  return (
-    <View style={{ gap: 7, marginBottom: 15 }}>
-      <Text style={s.label}>{label}</Text>
-      <TextInput
-        accessibilityLabel={label}
-        value={value}
-        onChangeText={onChangeText}
-        placeholderTextColor="#949C95"
-        style={s.input}
-        {...props}
-      />
-    </View>
-  );
-}
-function Pills({ items, value, onChange }: any) {
-  return (
-    <View style={s.wrap}>
-      {items.map((item: any) => {
-        const id = typeof item === "string" ? item : item.id;
-        return (
-          <Pressable
-            key={id}
-            accessibilityRole="button"
-            accessibilityState={{ selected: value === id }}
-            onPress={() => onChange(id)}
-            style={[
-              s.pill,
-              value === id && { backgroundColor: C.pale, borderColor: C.green },
-            ]}
-          >
-            <Text
-              style={{
-                color: value === id ? C.green : C.muted,
-                fontWeight: value === id ? "600" : "400",
-              }}
-            >
-              {typeof item === "string" ? item : item.name}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-function Card({ children, style }: any) {
-  return <View style={[s.card, style]}>{children}</View>;
-}
-function Tag({ text }: any) {
-  return (
-    <View style={s.tag}>
-      <Text
-        style={{
-          color: C.green,
-          fontSize: 11,
-          fontWeight: "700",
-          letterSpacing: 0.4,
-        }}
-      >
-        {text}
-      </Text>
-    </View>
-  );
-}
 export default function App() {
   const { width } = useWindowDimensions();
   const wide = width >= 1000;
@@ -155,6 +68,61 @@ export default function App() {
     [newKey, setNewKey] = useState(""),
     [image, setImage] = useState(""),
     [search, setSearch] = useState("");
+  const [pendingInvite, setPendingInvite] = useState<string | null>(null),
+    [invitation, setInvitation] = useState<any>(null),
+    [inviteError, setInviteError] = useState("");
+  const inviteRequest = useRef(0);
+  async function showInvite(token: string) {
+    const request = ++inviteRequest.current;
+    setPendingInvite(token);
+    setInvitation(null);
+    setInviteError("");
+    await rememberInvite(token);
+    try {
+      const preview = await api("/invites/preview", "POST", {
+        inviteToken: token,
+      });
+      if (request === inviteRequest.current) setInvitation(preview);
+    } catch (e) {
+      if (request === inviteRequest.current)
+        setInviteError((e as Error).message);
+    }
+  }
+  async function dismissInvite() {
+    inviteRequest.current++;
+    await forgetInvite();
+    setPendingInvite(null);
+    setInvitation(null);
+    setInviteError("");
+    setError("");
+  }
+  async function acceptInvite() {
+    await run(async () => {
+      const result = await api("/groups/join", "POST", {
+        inviteToken: pendingInvite,
+      });
+      await loadGroups(result.id);
+      await dismissInvite();
+      setTab("Expenses");
+      setNotice("You joined the group");
+    });
+  }
+  function closeModal() {
+    setModal("");
+    setNewKey("");
+    setForm({});
+    setError("");
+  }
+  async function checkAgent(agentId: string) {
+    const updated = await api("/groups/" + selected);
+    setGroup(updated);
+    const agent = updated.agents.find((a: any) => a.id === agentId);
+    if (!agent) throw new Error("This agent is no longer available.");
+    return agent;
+  }
+  const peopleLink = group?.invite_token
+    ? inviteLink(appOrigin(), group.invite_token)
+    : "";
   async function loadGroups(prefer?: string) {
     const all = await api("/groups");
     setGroups(all);
@@ -182,6 +150,8 @@ export default function App() {
   useEffect(() => {
     void (async () => {
       try {
+        const token = await initialInvite();
+        if (token) await showInvite(token);
         await restoreSession();
         const me = await api("/me");
         setUser(me);
@@ -191,6 +161,21 @@ export default function App() {
         setBoot(false);
       }
     })();
+  }, []);
+  useEffect(() => {
+    const receive = (url: string) => {
+      const token = inviteTokenFrom(url);
+      if (token) void showInvite(token);
+    };
+    const sub = Linking.addEventListener("url", (event) => receive(event.url));
+    const hashChange = () => receive(window.location.href);
+    if (Platform.OS === "web")
+      window.addEventListener("hashchange", hashChange);
+    return () => {
+      sub.remove();
+      if (Platform.OS === "web")
+        window.removeEventListener("hashchange", hashChange);
+    };
   }, []);
   async function authenticate() {
     await run(async () => {
@@ -220,6 +205,7 @@ export default function App() {
         group?.members[0]?.id,
       spentOn: today(),
       category: "Food & drink",
+      audience: "Whole group",
       splitMode: "Equal",
       participants: group?.members.map((m: any) => m.id) || [],
       exact: {},
@@ -232,15 +218,21 @@ export default function App() {
   const set = (key: string, value: any) =>
     setForm((f: any) => ({ ...f, [key]: value }));
   function expenseData(): ExpenseInput {
+    if (!form.participants?.length)
+      throw new Error("Choose at least one person to split this expense with.");
     const amountMinor = parseMoney(form.amount);
     const splits =
       form.splitMode === "Equal"
         ? equalSplit(amountMinor, form.participants)
         : form.participants.map((memberId: string) => ({
             memberId,
-            amountMinor:
-              parseMoney(form.exact[memberId] || "", true),
+            amountMinor: parseMoney(form.exact[memberId] || "", true),
           }));
+    if (
+      splits.reduce((n: number, part: any) => n + part.amountMinor, 0) !==
+      amountMinor
+    )
+      throw new Error("The exact shares must add up to the total.");
     return {
       title: form.title,
       amountMinor,
@@ -262,20 +254,26 @@ export default function App() {
         await loadGroups(g.id);
         done = "Your group is ready";
       } else if (modal === "Join a group") {
-        const g = await api("/groups/join", "POST", {
-          inviteToken: form.inviteToken?.trim(),
-        });
-        await loadGroups(g.id);
-        done = "You joined the group";
-      } else if (modal === "Add member") {
+        const token = inviteTokenFrom(form.inviteInput || "");
+        if (!token)
+          throw new Error("Paste the full invitation link you received.");
+        await showInvite(token);
+        closeModal();
+        return;
+      } else if (modal === "Add person") {
         await api(path + "/members", "POST", { name: form.name });
         await refresh();
         done = "Member added";
-      } else if (modal === "Connect an agent") {
+      } else if (modal === "Add agent") {
         const a = await api(path + "/agents", "POST", { name: form.name });
         setNewKey(a.key);
+        setForm((f: any) => ({ ...f, agentId: a.id }));
         await refresh();
         return;
+      } else if (modal === "Replace invitation link") {
+        await api(path + "/invite", "POST");
+        await refresh();
+        done = "New invitation link created. The old link no longer works.";
       } else if (modal === "Record payment") {
         await api(path + "/settlements", "POST", {
           fromMember: form.from,
@@ -315,7 +313,7 @@ export default function App() {
         await refresh();
         done = "Expense added";
       }
-      setModal("");
+      closeModal();
       setNotice(done);
     });
   }
@@ -327,6 +325,10 @@ export default function App() {
       paidBy: p.paidBy,
       spentOn: p.spentOn,
       category: p.category,
+      audience:
+        p.splits.length === group.members.length
+          ? "Whole group"
+          : "Selected people",
       splitMode: "Exact",
       participants: p.splits.map((x: any) => x.memberId),
       exact: Object.fromEntries(
@@ -381,6 +383,15 @@ export default function App() {
     "Submit receipt",
     "Review receipt",
   ].includes(modal);
+  let equalShares: Record<string, number> = {};
+  try {
+    if (form.participants?.length)
+      equalShares = Object.fromEntries(
+        equalSplit(parseMoney(form.amount || ""), form.participants).map(
+          (part) => [part.memberId, part.amountMinor],
+        ),
+      );
+  } catch {}
   if (boot)
     return (
       <View style={[s.root, s.center]}>
@@ -462,6 +473,35 @@ export default function App() {
               </Card>
             </View>
             <Card style={{ width: wide ? 410 : "100%", padding: 32, gap: 8 }}>
+              {pendingInvite && (
+                <View
+                  style={{
+                    padding: 16,
+                    backgroundColor: C.pale,
+                    borderRadius: 10,
+                    gap: 10,
+                    marginBottom: 16,
+                  }}
+                >
+                  <Text style={s.subtitle}>
+                    {invitation
+                      ? `Join ${invitation.name}`
+                      : inviteError
+                        ? "Invitation unavailable"
+                        : "Opening your invitation…"}
+                  </Text>
+                  <Text style={s.muted}>
+                    {inviteError ||
+                      "Sign in or create an account, then join this group. Your invitation will be kept while you sign in."}
+                  </Text>
+                  <Button
+                    secondary
+                    small
+                    label="Dismiss invitation"
+                    onPress={() => void dismissInvite()}
+                  />
+                </View>
+              )}
               <Text style={s.heading}>
                 {authMode === "register"
                   ? "Make room for everyone."
@@ -534,6 +574,69 @@ export default function App() {
               </Pressable>
             </Card>
           </View>
+        </ScrollView>
+      ) : pendingInvite ? (
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <Card
+            style={{
+              maxWidth: 520,
+              width: "100%",
+              alignSelf: "center",
+              gap: 20,
+            }}
+          >
+            <Tag text="INVITATION FOR PEOPLE" />
+            <Text style={s.heading}>
+              {invitation
+                ? `Join ${invitation.name}`
+                : inviteError
+                  ? "This invitation is unavailable"
+                  : "Opening your invitation…"}
+            </Text>
+            {invitation && (
+              <>
+                <Text style={s.muted}>
+                  {invitation.member_count} members · {invitation.currency}
+                </Text>
+                <Text style={[s.muted, { lineHeight: 23 }]}>
+                  Join as {user.name} to see the group’s expenses and balances,
+                  add expenses, and review receipt drafts.
+                </Text>
+                <Text style={[s.muted, { lineHeight: 21 }]}>
+                  Joining creates your own profile. If the owner already tracks
+                  someone with your name, that named person’s earlier shares
+                  stay separate.
+                </Text>
+              </>
+            )}
+            {!!inviteError && (
+              <Text accessibilityRole="alert" style={s.error}>
+                {inviteError}
+              </Text>
+            )}
+            {!!error && (
+              <Text accessibilityRole="alert" style={s.error}>
+                {error}
+              </Text>
+            )}
+            <Button
+              label={busy ? "Joining…" : "Join group"}
+              disabled={busy || !invitation || !!inviteError}
+              onPress={() => void acceptInvite()}
+            />
+            <Button
+              secondary
+              label="Not now"
+              disabled={busy}
+              onPress={() => void dismissInvite()}
+            />
+          </Card>
         </ScrollView>
       ) : (
         <View style={{ flex: 1, flexDirection: wide ? "row" : "column" }}>
@@ -610,7 +713,7 @@ export default function App() {
                 small
               />
               <Button
-                label="Join with invite"
+                label="Open invite link"
                 secondary
                 onPress={() => open("Join a group")}
                 small
@@ -1164,18 +1267,19 @@ export default function App() {
                             <Text style={s.heading}>Bring your own agent.</Text>
                           </View>
                           <Text style={[s.muted, { lineHeight: 24 }]}>
-                            Claude, Grok, or your own assistant. Give it a group
-                            key and it can submit structured receipts to your
-                            inbox. You stay in control of every expense.
+                            Add an assistant that supports MCP tools or HTTPS
+                            requests. We’ll guide you through setup. Agents send
+                            receipt drafts; people review and approve them.
                           </Text>
                           {owner && (
                             <Button
-                              label="+ Connect an agent"
-                              onPress={() => open("Connect an agent")}
+                              label="Set up an agent"
+                              onPress={() => open("Add agent")}
                             />
                           )}
-                          <Text selectable style={[s.code, { fontSize: 12 }]}>
-                            POST /api/v1/agent/receipts
+                          <Text style={s.muted}>
+                            Inviting a person? Use Members → Invite people.
+                            Agent access is separate and stays private.
                           </Text>
                         </Card>
                         {group.agents.map((a: any) => (
@@ -1191,12 +1295,26 @@ export default function App() {
                                       { fontSize: 12, marginTop: 5 },
                                     ]}
                                   >
-                                    {a.revoked_at
-                                      ? "Access revoked"
-                                      : "Can submit receipts · this group only"}
+                                    {agentConnectionLabel(a)}
+                                    {a.last_used_at && !a.revoked_at
+                                      ? ` · Last contact ${new Date(a.last_used_at).toLocaleString()}`
+                                      : ""}
                                   </Text>
                                 </View>
                               </View>
+                              {owner && !a.revoked_at && (
+                                <Button
+                                  label="Setup"
+                                  secondary
+                                  small
+                                  onPress={() =>
+                                    open("Set up agent", {
+                                      agentId: a.id,
+                                      name: a.name,
+                                    })
+                                  }
+                                />
+                              )}
                               {owner && !a.revoked_at && (
                                 <Button
                                   label="Revoke"
@@ -1214,9 +1332,9 @@ export default function App() {
                           </Card>
                         ))}
                         <Text style={s.muted}>
-                          REST API and a local MCP adapter are included. Agents
-                          can’t approve receipts, settle debts, or read other
-                          groups.
+                          Creating access is the first step. A connection is
+                          verified only after your agent contacts Fairshare. No
+                          one-click Claude or Grok sign-in is provided.
                         </Text>
                       </View>
                     )}
@@ -1228,10 +1346,10 @@ export default function App() {
                           </Text>
                           {owner && (
                             <Button
-                              label="+ Member"
+                              label="Add person by name"
                               small
                               secondary
-                              onPress={() => open("Add member")}
+                              onPress={() => open("Add person")}
                             />
                           )}
                         </View>
@@ -1257,40 +1375,62 @@ export default function App() {
                               >
                                 {m.user_id
                                   ? "Account connected"
-                                  : "Managed member · no account needed"}
+                                  : "Share tracked by name · no account or app access"}
                               </Text>
                             </View>
                           </View>
                         ))}
                         {owner && (
                           <View style={{ gap: 14, marginTop: 24 }}>
-                            <Text style={s.label}>
-                              Invite someone to participate
-                            </Text>
+                            <Text style={s.subtitle}>Invite people</Text>
                             <Text style={[s.muted, { lineHeight: 22 }]}>
-                              Share this code privately. Joining creates a new
-                              member; named members stay separate.
+                              Send a link in a text, email, or chat. They open
+                              it, sign in, and join this group. Anyone with the
+                              link can join, so share it privately.
                             </Text>
-                            <Text selectable style={s.code}>
-                              {group.invite_token}
-                            </Text>
+                            <View style={s.wrap}>
+                              <Button
+                                label="Copy invite link"
+                                onPress={() =>
+                                  void run(async () => {
+                                    await copyText(peopleLink);
+                                    setNotice(
+                                      "Invite link copied — paste it into a text or chat",
+                                    );
+                                  })
+                                }
+                              />
+                              <Button
+                                label="Share invitation"
+                                secondary
+                                onPress={() =>
+                                  void run(async () => {
+                                    setNotice(
+                                      await shareInvite(peopleLink, group.name),
+                                    );
+                                  })
+                                }
+                              />
+                            </View>
                             <Button
-                              label="Replace invite code"
+                              label="View invitation link"
                               secondary
                               small
-                              onPress={() =>
-                                void run(async () => {
-                                  await api(
-                                    "/groups/" + selected + "/invite",
-                                    "POST",
-                                  );
-                                  await refresh();
-                                  setNotice(
-                                    "New invite code created. The previous code no longer works.",
-                                  );
-                                })
-                              }
+                              onPress={() => open("Invitation link")}
                             />
+                            <Button
+                              label="Replace invitation link"
+                              secondary
+                              small
+                              onPress={() => open("Replace invitation link")}
+                            />
+                            <Text style={[s.muted, { lineHeight: 21 }]}>
+                              Just keeping track for someone? Add a person by
+                              name above. They can have a share without signing
+                              up. Inviting an account creates a separate
+                              profile; it does not claim an existing named
+                              person.
+                            </Text>
                           </View>
                         )}
                       </Card>
@@ -1435,7 +1575,7 @@ export default function App() {
         transparent
         animationType="fade"
         onRequestClose={() => {
-          if (!busy) setModal("");
+          if (!busy) closeModal();
         }}
       >
         <View style={s.overlay}>
@@ -1456,7 +1596,7 @@ export default function App() {
                 accessibilityRole="button"
                 accessibilityLabel="Close dialog"
                 disabled={busy}
-                onPress={() => setModal("")}
+                onPress={closeModal}
               >
                 {icon("x", 24, C.muted)}
               </Pressable>
@@ -1465,16 +1605,14 @@ export default function App() {
               contentContainerStyle={{ padding: 24 }}
               keyboardShouldPersistTaps="handled"
             >
-              {["New group", "Add member", "Connect an agent"].includes(
-                modal,
-              ) &&
-                !newKey && (
+              {["New group", "Add person", "Add agent"].includes(modal) &&
+                !form.agentId && (
                   <>
                     <Field
                       label={
                         modal === "New group"
                           ? "Group name"
-                          : modal === "Add member"
+                          : modal === "Add person"
                             ? "Member name"
                             : "Agent name"
                       }
@@ -1483,7 +1621,7 @@ export default function App() {
                       placeholder={
                         modal === "New group"
                           ? "e.g. Lisbon weekend"
-                          : modal === "Add member"
+                          : modal === "Add person"
                             ? "e.g. Alex"
                             : "e.g. Claude · travel receipts"
                       }
@@ -1503,56 +1641,80 @@ export default function App() {
                         </Text>
                       </>
                     )}
-                    {modal === "Add member" && (
+                    {modal === "Add person" && (
                       <Text style={s.muted}>
-                        Add someone by name without requiring an account.
+                        Track this person’s share without an account. They will
+                        not get a message or app access. To let them
+                        participate, share a people invitation link from
+                        Members.
                       </Text>
                     )}
-                    {modal === "Connect an agent" && (
+                    {modal === "Add agent" && (
                       <Text style={[s.muted, { lineHeight: 23 }]}>
-                        This key lets an agent read member names and submit
-                        receipts to this group. Only people can approve
-                        expenses.
+                        First create private access for this group, then follow
+                        the setup guide in your agent client. Access alone does
+                        not connect the agent. It can read member names and
+                        submit drafts; only people approve expenses.
                       </Text>
                     )}
                   </>
                 )}
-              {newKey && (
-                <View style={{ gap: 18 }}>
-                  <Text style={s.subtitle}>Connected. Save this key now.</Text>
-                  <Text style={[s.muted, { lineHeight: 22 }]}>
-                    It is shown once. Keep it private and pass it to your agent
-                    as FAIRSHARE_AGENT_KEY.
+              {form.agentId &&
+                ["Add agent", "Set up agent"].includes(modal) && (
+                  <AgentSetup
+                    key={form.agentId}
+                    agent={
+                      group.agents.find((a: any) => a.id === form.agentId) || {
+                        id: form.agentId,
+                        name: form.name,
+                      }
+                    }
+                    privateKey={newKey}
+                    onCheck={() => checkAgent(form.agentId)}
+                    onClose={closeModal}
+                  />
+                )}
+              {modal === "Invitation link" && (
+                <View style={{ gap: 16 }}>
+                  <Text style={s.muted}>
+                    Share this link privately with the people you want to join.
                   </Text>
                   <Text selectable style={s.code}>
-                    {newKey}
-                  </Text>
-                  <Text style={s.label}>Group ID</Text>
-                  <Text selectable style={s.code}>
-                    {selected}
+                    {peopleLink}
                   </Text>
                   <Button
-                    label="I saved the key"
-                    onPress={() => {
-                      setNewKey("");
-                      setModal("");
-                    }}
+                    label="Copy invite link"
+                    onPress={() =>
+                      void run(async () => {
+                        await copyText(peopleLink);
+                        setNotice("Invite link copied");
+                        closeModal();
+                      })
+                    }
                   />
+                  <Button secondary label="Done" onPress={closeModal} />
                 </View>
               )}
               {modal === "Join a group" && (
                 <>
                   <Field
-                    label="Invite code"
-                    value={form.inviteToken || ""}
-                    onChangeText={(v: string) => set("inviteToken", v)}
+                    label="Invitation link"
+                    value={form.inviteInput || ""}
+                    onChangeText={(v: string) => set("inviteInput", v)}
                     autoCapitalize="none"
-                    placeholder="join_…"
+                    placeholder="Paste the link someone sent you"
                   />
                   <Text style={s.muted}>
-                    Ask the group owner for their invite code.
+                    Usually you can just tap the link in your message. Older
+                    invite codes still work here.
                   </Text>
                 </>
+              )}
+              {modal === "Replace invitation link" && (
+                <Text style={[s.muted, { lineHeight: 23 }]}>
+                  Create a new invitation link? The current link will stop
+                  working. People who already joined will keep their access.
+                </Text>
               )}
               {isExpense && (
                 <>
@@ -1608,13 +1770,56 @@ export default function App() {
                   <View
                     style={[s.between, { marginTop: 10, marginBottom: 14 }]}
                   >
-                    <Text style={s.label}>Split between</Text>
+                    <Text style={s.label}>How should we split it?</Text>
                     <Pills
                       items={["Equal", "Exact"]}
                       value={form.splitMode}
                       onChange={(v: string) => set("splitMode", v)}
                     />
                   </View>
+                  <Pills
+                    items={["Whole group", "Selected people"]}
+                    value={form.audience}
+                    onChange={(v: string) =>
+                      setForm((f: any) => ({
+                        ...f,
+                        audience: v,
+                        participants:
+                          v === "Whole group"
+                            ? group.members.map((m: any) => m.id)
+                            : f.participants,
+                      }))
+                    }
+                  />
+                  <Text
+                    style={[s.muted, { marginVertical: 12, lineHeight: 21 }]}
+                  >
+                    {form.audience === "Whole group"
+                      ? `Everyone in ${group.name} is included.`
+                      : "Tick only the people sharing this expense. The payer can be different from the people splitting it."}{" "}
+                    {form.participants?.length || 0} selected.
+                  </Text>
+                  {form.audience === "Selected people" && (
+                    <View style={[s.row, { marginBottom: 12 }]}>
+                      <Button
+                        label="Select all"
+                        secondary
+                        small
+                        onPress={() =>
+                          set(
+                            "participants",
+                            group.members.map((m: any) => m.id),
+                          )
+                        }
+                      />
+                      <Button
+                        label="Clear selection"
+                        secondary
+                        small
+                        onPress={() => set("participants", [])}
+                      />
+                    </View>
+                  )}
                   {group?.members.map((m: any) => (
                     <View
                       key={m.id}
@@ -1626,14 +1831,15 @@ export default function App() {
                           checked: form.participants?.includes(m.id),
                         }}
                         onPress={() =>
-                          set(
-                            "participants",
-                            form.participants.includes(m.id)
-                              ? form.participants.filter(
+                          setForm((f: any) => ({
+                            ...f,
+                            audience: "Selected people",
+                            participants: f.participants.includes(m.id)
+                              ? f.participants.filter(
                                   (id: string) => id !== m.id,
                                 )
-                              : [...form.participants, m.id],
-                          )
+                              : [...f.participants, m.id],
+                          }))
                         }
                         style={[s.row, { flex: 1, paddingVertical: 10 }]}
                       >
@@ -1646,6 +1852,13 @@ export default function App() {
                         )}
                         <Text style={s.label}>{m.name}</Text>
                       </Pressable>
+                      {form.splitMode === "Equal" &&
+                        form.participants?.includes(m.id) &&
+                        equalShares[m.id] !== undefined && (
+                          <Text style={s.label}>
+                            {money(equalShares[m.id], group.currency)}
+                          </Text>
+                        )}
                       {form.splitMode === "Exact" &&
                         form.participants?.includes(m.id) && (
                           <TextInput
@@ -1755,7 +1968,7 @@ export default function App() {
                   {error}
                 </Text>
               )}
-              {!newKey && (
+              {!form.agentId && modal !== "Invitation link" && (
                 <View style={{ marginTop: 24, gap: 12 }}>
                   <Button
                     disabled={busy}
@@ -1768,13 +1981,15 @@ export default function App() {
                             ? "Remove expense"
                             : modal === "Revoke agent"
                               ? "Revoke access"
-                              : modal === "Connect an agent"
-                                ? "Create agent key"
+                              : modal === "Add agent"
+                                ? "Create private access"
                                 : modal === "Submit receipt"
                                   ? "Send to inbox"
                                   : modal === "Record payment"
                                     ? "Record payment"
-                                    : "Save"
+                                    : modal === "Join a group"
+                                      ? "Open invitation"
+                                      : "Save"
                     }
                     onPress={submit}
                   />
@@ -1782,7 +1997,7 @@ export default function App() {
                     secondary
                     label="Cancel"
                     disabled={busy}
-                    onPress={() => setModal("")}
+                    onPress={closeModal}
                   />
                 </View>
               )}
