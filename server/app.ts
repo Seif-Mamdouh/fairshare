@@ -34,6 +34,8 @@ const param = (req: Request, name: string) => String(req.params[name]);
 export function createApp(db: Database) {
   const app = express();
   app.disable("x-powered-by");
+  // Vercel overwrites X-Forwarded-For; trust its single ingress hop only there.
+  app.set("trust proxy", process.env.VERCEL === "1" ? 1 : false);
   app.use((req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
