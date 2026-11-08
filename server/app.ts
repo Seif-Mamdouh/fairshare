@@ -3,6 +3,8 @@ import express, {
   type Response,
   type NextFunction,
 } from "express";
+import { installPhoneAuth } from "./phone-auth";
+import { configuredPhoneProvider, type PhoneProvider } from "./phone-provider";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z, ZodError } from "zod";
@@ -31,7 +33,10 @@ const fail = (status: number, message: string): never => {
 const uid = () => randomUUID();
 const nameSchema = z.string().trim().min(1).max(80);
 const param = (req: Request, name: string) => String(req.params[name]);
-export function createApp(db: Database) {
+export function createApp(
+  db: Database,
+  options: { phoneProvider?: PhoneProvider | null } = {},
+) {
   const app = express();
   app.disable("x-powered-by");
   // Vercel overwrites X-Forwarded-For; trust its single ingress hop only there.
@@ -76,7 +81,7 @@ export function createApp(db: Database) {
   async function user(req: Request) {
     const rows = (
       await db.query(
-        "SELECT u.id,u.name,u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()",
+        "SELECT u.id,u.name,u.email,u.phone_e164 FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()",
         [hash(credential(req))],
       )
     ).rows;
@@ -95,11 +100,11 @@ export function createApp(db: Database) {
       fail(403, "Only the group owner can do this");
     return { u, g };
   }
-  async function limit(key: string, max = 30) {
+  async function limit(key: string, max = 30, seconds = 900) {
     const r = (
       await db.query(
-        "INSERT INTO rate_limits(key,hits,reset_at) VALUES($1,1,now()+interval '15 minutes') ON CONFLICT(key) DO UPDATE SET hits=CASE WHEN rate_limits.reset_at<now() THEN 1 ELSE rate_limits.hits+1 END,reset_at=CASE WHEN rate_limits.reset_at<now() THEN now()+interval '15 minutes' ELSE rate_limits.reset_at END RETURNING hits",
-        [hash(key)],
+        "INSERT INTO rate_limits(key,hits,reset_at) VALUES($1,1,now()+$2::int*interval '1 second') ON CONFLICT(key) DO UPDATE SET hits=CASE WHEN rate_limits.reset_at<now() THEN 1 ELSE rate_limits.hits+1 END,reset_at=CASE WHEN rate_limits.reset_at<now() THEN now()+$2::int*interval '1 second' ELSE rate_limits.reset_at END RETURNING hits",
+        [hash(key), seconds],
       )
     ).rows[0];
     if (r.hits > max) fail(429, "Too many requests. Try again in 15 minutes.");
@@ -112,13 +117,25 @@ export function createApp(db: Database) {
     );
     res.cookie("fairshare_session", value, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure:
+        process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
       sameSite: "strict",
       maxAge: 30 * 86400000,
       path: "/",
     });
     return value;
   }
+  installPhoneAuth(app, {
+    db,
+    provider:
+      options.phoneProvider === undefined
+        ? configuredPhoneProvider()
+        : options.phoneProvider,
+    user,
+    session,
+    limit,
+    route: asyncRoute,
+  });
   async function validateExpense(
     connection: Database,
     gid: string,
@@ -294,7 +311,12 @@ export function createApp(db: Database) {
       if (!u || !valid) fail(401, "Incorrect email or password");
       res.json({
         token: await session(res, u.id),
-        user: { id: u.id, name: u.name, email: u.email },
+        user: {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          phone_e164: u.phone_e164,
+        },
       });
     }),
   );

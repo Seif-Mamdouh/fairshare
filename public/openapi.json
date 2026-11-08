@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Fairshare Agent API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Group-scoped receipt submission for any agent provider. Human review required."
   },
   "servers": [
@@ -179,6 +179,115 @@
           },
           "404": {
             "description": "Receipt not found or belongs to another agent"
+          }
+        }
+      }
+    },
+    "/api/auth/phone/start": {
+      "post": {
+        "summary": "Request a real SMS verification; link requires an existing session",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "description": "International phone number beginning with +"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "enum": ["login", "link"],
+                    "default": "login"
+                  }
+                },
+                "required": ["phone"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verified session (check only)"
+          },
+          "202": {
+            "description": "Code requested; returns opaque challenge and retry timing (start only)"
+          },
+          "400": {
+            "description": "Invalid or expired verification"
+          },
+          "401": {
+            "description": "Account-linking requires authentication"
+          },
+          "429": {
+            "description": "Retry or attempt limit exceeded"
+          },
+          "503": {
+            "description": "Phone provider unavailable; email remains available"
+          }
+        }
+      }
+    },
+    "/api/auth/phone/check": {
+      "post": {
+        "summary": "Verify phone ownership and issue a secure 30-day session",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challenge": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[0-9]{4,10}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Optional display name used only for new accounts"
+                  }
+                },
+                "required": ["challenge", "code"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verified session (check only)"
+          },
+          "202": {
+            "description": "Code requested; returns opaque challenge and retry timing (start only)"
+          },
+          "400": {
+            "description": "Invalid or expired verification"
+          },
+          "401": {
+            "description": "Account-linking requires authentication"
+          },
+          "429": {
+            "description": "Retry or attempt limit exceeded"
+          },
+          "503": {
+            "description": "Phone provider unavailable; email remains available"
+          }
+        }
+      }
+    },
+    "/api/auth/methods": {
+      "get": {
+        "summary": "Return available sign-in methods without exposing provider configuration",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Boolean phone and email availability"
           }
         }
       }
