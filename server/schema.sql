@@ -14,3 +14,10 @@ CREATE INDEX IF NOT EXISTS settlements_group_idx ON settlements(group_id);
 
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS last_used_at timestamptz;
 UPDATE agents SET last_used_at=(SELECT MAX(created_at) FROM receipts WHERE agent_id=agents.id) WHERE last_used_at IS NULL AND EXISTS(SELECT 1 FROM receipts WHERE agent_id=agents.id);
+
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_e164 text UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at timestamptz;
+CREATE TABLE IF NOT EXISTS phone_challenges (token_hash text PRIMARY KEY, phone_e164 text NOT NULL, purpose text NOT NULL CHECK(purpose IN ('login','link')), user_id text REFERENCES users(id) ON DELETE CASCADE, verification_id text, attempts integer NOT NULL DEFAULT 0, checking boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz NOT NULL DEFAULT now()+interval '10 minutes', consumed_at timestamptz);
+CREATE INDEX IF NOT EXISTS phone_challenges_phone_idx ON phone_challenges(phone_e164,created_at);

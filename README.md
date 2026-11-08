@@ -80,3 +80,7 @@ Agents provide extracted structured receipt fields; Fairshare does not call a vi
 The product is an independent implementation. The bounded Splitwise/REA investigation, evidence, and limitations are documented in [docs/REVERSE_ENGINEERING.md](docs/REVERSE_ENGINEERING.md).
 
 References: [Expo web deployment](https://docs.expo.dev/guides/publishing-websites/), [Vercel Node functions](https://vercel.com/docs/functions/runtimes/node-js), [Neon connection pooling](https://neon.com/docs/connect/connection-pooling).
+
+## Phone sign-in
+
+Phone-number-first sign-in and authenticated phone linking are implemented behind real Twilio Verify configuration. Email access remains available until activation. Saved sessions last 30 days; a new device must verify a code even when the number exists. See [phone setup and limits](docs/PHONE_AUTH.md). No live SMS delivery has been validated without provider access.

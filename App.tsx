@@ -15,6 +15,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
 import { C, icon, Button, Field, Pills, Card, Tag } from "./client/components";
+import { PhoneAuth } from "./client/PhoneAuth";
 import { AgentSetup } from "./client/AgentSetup";
 import {
   appOrigin,
@@ -56,7 +57,9 @@ export default function App() {
     [group, setGroup] = useState<any>(null),
     [selected, setSelected] = useState(""),
     [tab, setTab] = useState("Expenses");
-  const [authMode, setAuthMode] = useState("register"),
+  const [phoneAvailable, setPhoneAvailable] = useState(false);
+  const [authChannel, setAuthChannel] = useState("Email");
+  const [authMode, setAuthMode] = useState("login"),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [name, setName] = useState("");
@@ -71,6 +74,23 @@ export default function App() {
   const [pendingInvite, setPendingInvite] = useState<string | null>(null),
     [invitation, setInvitation] = useState<any>(null),
     [inviteError, setInviteError] = useState("");
+  useEffect(() => {
+    void api("/auth/methods")
+      .then((methods) => {
+        setPhoneAvailable(methods.phone);
+        if (methods.phone) setAuthChannel("Phone");
+      })
+      .catch(() => {});
+  }, []);
+  async function finishPhoneAuth(data: any) {
+    await saveSession(data.token);
+    setUser(data.user);
+    await loadGroups();
+    if (modal === "Account") {
+      closeModal();
+      setNotice("Phone verified and linked to your account");
+    }
+  }
   const inviteRequest = useRef(0);
   async function showInvite(token: string) {
     const request = ++inviteRequest.current;
@@ -502,76 +522,106 @@ export default function App() {
                   />
                 </View>
               )}
-              <Text style={s.heading}>
-                {authMode === "register"
-                  ? "Make room for everyone."
-                  : "Welcome back."}
-              </Text>
-              <Text style={[s.muted, { marginBottom: 20 }]}>
-                {authMode === "register"
-                  ? "Your next shared adventure starts here."
-                  : "Pick up right where you left off."}
-              </Text>
-              {authMode === "register" && (
-                <Field
-                  label="Your name"
-                  value={name}
-                  onChangeText={setName}
-                  autoComplete="name"
-                />
+              <Pills
+                items={["Phone", "Email"]}
+                value={authChannel}
+                onChange={setAuthChannel}
+              />
+              {authChannel === "Phone" ? (
+                <View style={{ gap: 16, marginTop: 16 }}>
+                  <Text style={s.heading}>Welcome to Fairshare.</Text>
+                  <PhoneAuth
+                    available={phoneAvailable}
+                    onComplete={finishPhoneAuth}
+                  />
+                  <Text style={s.muted}>
+                    Already use email here? Sign in with email first, then link
+                    your phone in Account to keep your groups.
+                  </Text>
+                  <Button
+                    secondary
+                    label="Sign in with email"
+                    onPress={() => setAuthChannel("Email")}
+                  />
+                </View>
+              ) : (
+                <>
+                  <Text style={s.heading}>
+                    {authMode === "register"
+                      ? "Make room for everyone."
+                      : "Welcome back."}
+                  </Text>
+                  <Text style={[s.muted, { marginBottom: 20 }]}>
+                    {authMode === "register"
+                      ? "Your next shared adventure starts here."
+                      : "Pick up right where you left off."}
+                  </Text>
+                  {authMode === "register" && (
+                    <Field
+                      label="Your name"
+                      value={name}
+                      onChangeText={setName}
+                      autoComplete="name"
+                    />
+                  )}
+                  <Field
+                    label="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoComplete="email"
+                  />
+                  <Field
+                    label="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoComplete={
+                      authMode === "register"
+                        ? "new-password"
+                        : "current-password"
+                    }
+                    placeholder={
+                      authMode === "register"
+                        ? "At least 10 characters"
+                        : "Your password"
+                    }
+                  />
+                  {error && (
+                    <Text accessibilityRole="alert" style={s.error}>
+                      {error}
+                    </Text>
+                  )}
+                  <Button
+                    label={
+                      busy
+                        ? "One moment…"
+                        : authMode === "register"
+                          ? "Create your account →"
+                          : "Sign in →"
+                    }
+                    onPress={authenticate}
+                    disabled={busy}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setAuthMode(
+                        authMode === "register" ? "login" : "register",
+                      );
+                      setError("");
+                    }}
+                    style={{ paddingTop: 15 }}
+                  >
+                    <Text style={[s.muted, { textAlign: "center" }]}>
+                      {authMode === "register"
+                        ? "Already here? Sign in"
+                        : "New here? Create an account"}
+                    </Text>
+                  </Pressable>
+                </>
               )}
-              <Field
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-              />
-              <Field
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete={
-                  authMode === "register" ? "new-password" : "current-password"
-                }
-                placeholder={
-                  authMode === "register"
-                    ? "At least 10 characters"
-                    : "Your password"
-                }
-              />
-              {error && (
-                <Text accessibilityRole="alert" style={s.error}>
-                  {error}
-                </Text>
-              )}
-              <Button
-                label={
-                  busy
-                    ? "One moment…"
-                    : authMode === "register"
-                      ? "Create your account →"
-                      : "Sign in →"
-                }
-                onPress={authenticate}
-                disabled={busy}
-              />
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setAuthMode(authMode === "register" ? "login" : "register");
-                  setError("");
-                }}
-                style={{ paddingTop: 15 }}
-              >
-                <Text style={[s.muted, { textAlign: "center" }]}>
-                  {authMode === "register"
-                    ? "Already here? Sign in"
-                    : "New here? Create an account"}
-                </Text>
-              </Pressable>
             </Card>
           </View>
         </ScrollView>
@@ -717,6 +767,14 @@ export default function App() {
                 secondary
                 onPress={() => open("Join a group")}
                 small
+              />
+            </View>
+            <View style={{ marginTop: 16 }}>
+              <Button
+                secondary
+                small
+                label="Account"
+                onPress={() => open("Account")}
               />
             </View>
             {wide && <View style={{ flex: 1, minHeight: 30 }} />}
@@ -1695,6 +1753,27 @@ export default function App() {
                   <Button secondary label="Done" onPress={closeModal} />
                 </View>
               )}
+              {modal === "Account" && (
+                <View style={{ gap: 16 }}>
+                  <Text style={s.subtitle}>{user.name}</Text>
+                  {!!user.email && (
+                    <Text style={s.muted}>
+                      Email sign-in remains available.
+                    </Text>
+                  )}
+                  <Text style={s.muted}>
+                    {user.phone_e164
+                      ? "A verified phone number is linked. Verify another number below only if you want to replace it."
+                      : "Link your phone to keep using this account and all its groups."}
+                  </Text>
+                  <PhoneAuth
+                    link
+                    available={phoneAvailable}
+                    onComplete={finishPhoneAuth}
+                  />
+                  <Button secondary label="Done" onPress={closeModal} />
+                </View>
+              )}
               {modal === "Join a group" && (
                 <>
                   <Field
@@ -1968,39 +2047,41 @@ export default function App() {
                   {error}
                 </Text>
               )}
-              {!form.agentId && modal !== "Invitation link" && (
-                <View style={{ marginTop: 24, gap: 12 }}>
-                  <Button
-                    disabled={busy}
-                    label={
-                      busy
-                        ? "Saving…"
-                        : modal === "Review receipt"
-                          ? "Approve & add expense"
-                          : modal === "Remove expense"
-                            ? "Remove expense"
-                            : modal === "Revoke agent"
-                              ? "Revoke access"
-                              : modal === "Add agent"
-                                ? "Create private access"
-                                : modal === "Submit receipt"
-                                  ? "Send to inbox"
-                                  : modal === "Record payment"
-                                    ? "Record payment"
-                                    : modal === "Join a group"
-                                      ? "Open invitation"
-                                      : "Save"
-                    }
-                    onPress={submit}
-                  />
-                  <Button
-                    secondary
-                    label="Cancel"
-                    disabled={busy}
-                    onPress={closeModal}
-                  />
-                </View>
-              )}
+              {!form.agentId &&
+                modal !== "Account" &&
+                modal !== "Invitation link" && (
+                  <View style={{ marginTop: 24, gap: 12 }}>
+                    <Button
+                      disabled={busy}
+                      label={
+                        busy
+                          ? "Saving…"
+                          : modal === "Review receipt"
+                            ? "Approve & add expense"
+                            : modal === "Remove expense"
+                              ? "Remove expense"
+                              : modal === "Revoke agent"
+                                ? "Revoke access"
+                                : modal === "Add agent"
+                                  ? "Create private access"
+                                  : modal === "Submit receipt"
+                                    ? "Send to inbox"
+                                    : modal === "Record payment"
+                                      ? "Record payment"
+                                      : modal === "Join a group"
+                                        ? "Open invitation"
+                                        : "Save"
+                      }
+                      onPress={submit}
+                    />
+                    <Button
+                      secondary
+                      label="Cancel"
+                      disabled={busy}
+                      onPress={closeModal}
+                    />
+                  </View>
+                )}
             </ScrollView>
           </View>
         </View>
