@@ -264,12 +264,10 @@ export function createApp(db: Database) {
         if (e.code === "23505") fail(409, "This email is already registered");
         throw e;
       }
-      res
-        .status(201)
-        .json({
-          token: await session(res, id),
-          user: { id, name: data.name, email: data.email.toLowerCase() },
-        });
+      res.status(201).json({
+        token: await session(res, id),
+        user: { id, name: data.name, email: data.email.toLowerCase() },
+      });
     }),
   );
   app.post(
@@ -350,6 +348,27 @@ export function createApp(db: Database) {
     }),
   );
   app.post(
+    "/api/invites/preview",
+    asyncRoute(async (req, res) => {
+      await limit("invite-preview:" + req.ip, 60);
+      const { inviteToken } = z
+        .object({ inviteToken: z.string().regex(/^join_[A-Za-z0-9_-]{43}$/) })
+        .parse(req.body);
+      const group = (
+        await db.query(
+          "SELECT g.name,g.currency,(SELECT count(*)::int FROM members m WHERE m.group_id=g.id) AS member_count FROM groups g WHERE g.invite_token=$1",
+          [inviteToken],
+        )
+      ).rows[0];
+      if (!group)
+        fail(
+          404,
+          "This invitation is no longer available. Ask the group owner for a new link.",
+        );
+      res.json(group);
+    }),
+  );
+  app.post(
     "/api/groups/join",
     asyncRoute(async (req, res) => {
       const u = await user(req);
@@ -381,7 +400,7 @@ export function createApp(db: Database) {
             "SELECT * FROM expenses WHERE group_id=$1 ORDER BY created_at DESC",
             "SELECT * FROM settlements WHERE group_id=$1 ORDER BY created_at DESC",
             "SELECT id,agent_id,source_id,payload,status,expense_id,created_at,(image_data IS NOT NULL) AS has_image FROM receipts WHERE group_id=$1 ORDER BY created_at DESC",
-            "SELECT id,name,created_at,revoked_at FROM agents WHERE group_id=$1 ORDER BY created_at DESC",
+            "SELECT id,name,created_at,revoked_at,last_used_at FROM agents WHERE group_id=$1 ORDER BY created_at DESC",
           ].map((q) => db.query(q, [g.id])),
         );
       const net = balances(members.rows, expenses.rows, settlements.rows);
@@ -593,6 +612,10 @@ export function createApp(db: Database) {
     ).rows[0];
     if (!a) fail(401, "Invalid or revoked agent key");
     await limit("agent:" + a.id, 120);
+    await db.query(
+      "UPDATE agents SET last_used_at=now() WHERE id=$1 AND revoked_at IS NULL",
+      [a.id],
+    );
     return a;
   }
   app.get(
@@ -645,23 +668,17 @@ export function createApp(db: Database) {
   );
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ZodError)
-      return res
-        .status(400)
-        .json({
-          error: err.issues
-            .map((i) => `${i.path.join(".")}: ${i.message}`)
-            .join("; "),
-        });
+      return res.status(400).json({
+        error: err.issues
+          .map((i) => `${i.path.join(".")}: ${i.message}`)
+          .join("; "),
+      });
     const status = err.status || 500;
     if (status >= 500) console.error("API error", err.message);
-    res
-      .status(status)
-      .json({
-        error:
-          status >= 500
-            ? "Something went wrong. Please try again."
-            : err.message,
-      });
+    res.status(status).json({
+      error:
+        status >= 500 ? "Something went wrong. Please try again." : err.message,
+    });
   });
   return app;
 }

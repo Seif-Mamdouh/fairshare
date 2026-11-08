@@ -16,33 +16,35 @@
     "preview": "tsx server/local.ts"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@expo/vector-icons": "^15.0.3",
+    "@modelcontextprotocol/sdk": "^1.24.0",
+    "dotenv": "^17.2.3",
     "expo": "~54.0.38",
-    "expo-status-bar": "~3.0.9",
+    "expo-clipboard": "~8.0.8",
     "expo-image-picker": "~17.0.11",
+    "expo-linking": "~8.0.12",
     "expo-secure-store": "~15.0.8",
+    "expo-status-bar": "~3.0.9",
+    "express": "^5.1.0",
+    "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-web": "^0.21.0",
-    "@expo/vector-icons": "^15.0.3",
-    "@expo/metro-runtime": "~6.1.2",
-    "express": "^5.1.0",
-    "pg": "^8.16.3",
-    "zod": "^3.25.76",
-    "@modelcontextprotocol/sdk": "^1.24.0",
-    "dotenv": "^17.2.3"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
     "@types/express": "^5.0.5",
+    "@types/node": "^22.0.0",
     "@types/pg": "^8.15.6",
     "@types/react": "~19.1.10",
-    "@types/node": "^22.0.0",
-    "typescript": "~5.9.2",
-    "tsx": "^4.20.6",
+    "@types/supertest": "^6.0.3",
     "concurrently": "^9.2.1",
     "supertest": "^7.1.4",
-    "@types/supertest": "^6.0.3"
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.2"
   },
   "engines": {
     "node": ">=22"

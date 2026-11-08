@@ -11,3 +11,6 @@ CREATE INDEX IF NOT EXISTS members_user_idx ON members(user_id);
 CREATE INDEX IF NOT EXISTS expenses_group_idx ON expenses(group_id,created_at);
 CREATE INDEX IF NOT EXISTS receipts_group_idx ON receipts(group_id,created_at);
 CREATE INDEX IF NOT EXISTS settlements_group_idx ON settlements(group_id);
+
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS last_used_at timestamptz;
+UPDATE agents SET last_used_at=(SELECT MAX(created_at) FROM receipts WHERE agent_id=agents.id) WHERE last_used_at IS NULL AND EXISTS(SELECT 1 FROM receipts WHERE agent_id=agents.id);

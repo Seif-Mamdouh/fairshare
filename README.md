@@ -45,9 +45,17 @@ Then open http://localhost:3001. Stop the dev API first; only one process may op
 
 Vercel hosts the Expo **web export and API**, not iOS or Android binaries. For native development, set `EXPO_PUBLIC_API_URL` to your HTTPS backend (or LAN API address for a local device) before running `npx expo start`. Native distribution needs the usual Expo/EAS and Apple/Google accounts. No app-store build or publishing is included here.
 
+## Invite people and split expenses
+
+Open **Members → Invite people → Copy invite link** or **Share invitation**. Send the link in your own text/email/chat app. The link opens an invitation landing screen, survives sign-in/sign-up and reloads, and asks the recipient to join. A preview request never adds a member. Replacing the invitation link invalidates the previous link without removing existing members. Older raw codes still work in **Open invite link**.
+
+Use **Add person by name** to track someone’s share without sending an invite or giving app access. Joining with an account still creates a separate member; existing named entries are not automatically claimed or merged.
+
+In **Add expense**, choose **Whole group** or **Selected people**, then **Equal** or **Exact**. The payer can be different from the people sharing the cost. Equal shares are previewed in cents; exact shares must add up to the total.
+
 ## Connect Claude, Grok, or another agent
 
-Open a group → **Agents** → **Connect an agent**. Copy the key while it is shown. Give your agent the REST contract in [docs/AGENT_API.md](docs/AGENT_API.md), or run the MCP adapter with a compatible client. Provider-hosted chat products vary in whether they allow arbitrary tools; the REST API works with any agent runtime that can make HTTPS requests. No provider account or API key is required by Fairshare itself.
+Open a group → **Agents** → **Set up an agent**. Create private access, choose MCP or HTTP setup, and follow the guide. Copy the key while it is shown. The app shows **Not connected yet** until an authenticated agent request reaches the server; **Check connection** reads that observed status. Give your agent the REST contract in [docs/AGENT_API.md](docs/AGENT_API.md), or run the MCP adapter with a compatible client. Provider-hosted chat products vary in whether they allow arbitrary tools; the REST API works with any agent runtime that can make HTTPS requests. No provider account or API key is required by Fairshare itself.
 
 ```sh
 FAIRSHARE_URL=https://your-app.vercel.app FAIRSHARE_AGENT_KEY=your-private-key npm run mcp
