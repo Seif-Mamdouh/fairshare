@@ -1,0 +1,186 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fairshare Agent API",
+    "version": "1.0.0",
+    "description": "Group-scoped receipt submission for any agent provider. Human review required."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/agent"
+    }
+  ],
+  "security": [
+    {
+      "agentKey": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "agentKey": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Receipt": {
+        "type": "object",
+        "required": [
+          "sourceId",
+          "title",
+          "amountMinor",
+          "currency",
+          "paidBy",
+          "spentOn",
+          "splits"
+        ],
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          },
+          "currency": {
+            "type": "string",
+            "enum": ["USD", "EUR", "GBP", "CAD", "AUD", "EGP"]
+          },
+          "paidBy": {
+            "type": "string"
+          },
+          "spentOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Food & drink",
+              "Groceries",
+              "Transport",
+              "Stay",
+              "Shopping",
+              "Other"
+            ],
+            "default": "Other"
+          },
+          "splits": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "required": ["memberId", "amountMinor"],
+              "properties": {
+                "memberId": {
+                  "type": "string"
+                },
+                "amountMinor": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000000
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "imageData": {
+            "type": "string",
+            "maxLength": 1400000,
+            "description": "PNG, JPEG, or WebP base64 data URL; max 1 MB decoded."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/context": {
+      "get": {
+        "operationId": "getGroupContext",
+        "summary": "Read group currency and member IDs",
+        "responses": {
+          "200": {
+            "description": "Group, members, agent, and capabilities"
+          },
+          "401": {
+            "description": "Invalid or revoked key"
+          }
+        }
+      }
+    },
+    "/receipts": {
+      "post": {
+        "operationId": "submitReceipt",
+        "summary": "Submit an idempotent receipt draft",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Receipt"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "New pending receipt"
+          },
+          "200": {
+            "description": "Identical replay"
+          },
+          "400": {
+            "description": "Invalid fields, currency, members, image, or split total"
+          },
+          "401": {
+            "description": "Invalid or revoked key"
+          },
+          "409": {
+            "description": "Source ID reused with different content"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/receipts/{id}": {
+      "get": {
+        "operationId": "getReceiptStatus",
+        "summary": "Read this agent\u2019s receipt review status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt status and expense ID"
+          },
+          "404": {
+            "description": "Receipt not found or belongs to another agent"
+          }
+        }
+      }
+    }
+  }
+}

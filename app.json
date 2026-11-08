@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Fairshare",
+    "slug": "fairshare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "Fairshare — expenses, together"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.fairshare.mobile"
+    },
+    "android": { "package": "app.fairshare.mobile" },
+    "plugins": [
+      [
+        "expo-image-picker",
+        { "photosPermission": "Choose a receipt to share with your group." }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}
