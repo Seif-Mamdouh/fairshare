@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Fairshare Agent API",
-    "version": "1.2.0",
+    "version": "2.0.0",
     "description": "Group-scoped receipt submission for any agent provider. Human review required."
   },
   "servers": [
@@ -20,6 +20,16 @@
       "agentKey": {
         "type": "http",
         "scheme": "bearer"
+      },
+      "workspaceCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "fairshare_session"
+      },
+      "workspaceToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Private device session token for native and API clients"
       }
     },
     "schemas": {
@@ -52,7 +62,14 @@
           },
           "currency": {
             "type": "string",
-            "enum": ["USD", "EUR", "GBP", "CAD", "AUD", "EGP"]
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CAD",
+              "AUD",
+              "EGP"
+            ]
           },
           "paidBy": {
             "type": "string"
@@ -79,7 +96,10 @@
             "maxItems": 100,
             "items": {
               "type": "object",
-              "required": ["memberId", "amountMinor"],
+              "required": [
+                "memberId",
+                "amountMinor"
+              ],
               "properties": {
                 "memberId": {
                   "type": "string"
@@ -183,114 +203,73 @@
         }
       }
     },
-    "/api/auth/phone/start": {
+    "/api/workspace": {
       "post": {
-        "summary": "Request a real SMS verification; link requires an existing session",
+        "summary": "Create or resume a private device workspace; a valid session preserves its existing identity",
         "security": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "phone": {
-                    "type": "string",
-                    "description": "International phone number beginning with +"
-                  },
-                  "purpose": {
-                    "type": "string",
-                    "enum": ["login", "link"],
-                    "default": "login"
-                  }
-                },
-                "required": ["phone"]
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Verified session (check only)"
+            "description": "Existing session resumed and renewed for one year"
           },
-          "202": {
-            "description": "Code requested; returns opaque challenge and retry timing (start only)"
-          },
-          "400": {
-            "description": "Invalid or expired verification"
-          },
-          "401": {
-            "description": "Account-linking requires authentication"
+          "201": {
+            "description": "New empty private workspace and secure device session"
           },
           "429": {
-            "description": "Retry or attempt limit exceeded"
-          },
-          "503": {
-            "description": "Phone provider unavailable; email remains available"
+            "description": "New-workspace rate limit exceeded"
           }
         }
-      }
+      },
+      "servers": [
+        {
+          "url": "/"
+        }
+      ]
     },
-    "/api/auth/phone/check": {
+    "/api/me/name": {
       "post": {
-        "summary": "Verify phone ownership and issue a secure 30-day session",
-        "security": [],
+        "summary": "Update this workspace display name and linked memberships",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "name"
+                ],
                 "properties": {
-                  "challenge": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string",
-                    "pattern": "^[0-9]{4,10}$"
-                  },
                   "name": {
                     "type": "string",
-                    "description": "Optional display name used only for new accounts"
+                    "minLength": 1,
+                    "maxLength": 80
                   }
-                },
-                "required": ["challenge", "code"]
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Verified session (check only)"
-          },
-          "202": {
-            "description": "Code requested; returns opaque challenge and retry timing (start only)"
-          },
-          "400": {
-            "description": "Invalid or expired verification"
+            "description": "Updated display name"
           },
           "401": {
-            "description": "Account-linking requires authentication"
-          },
-          "429": {
-            "description": "Retry or attempt limit exceeded"
-          },
-          "503": {
-            "description": "Phone provider unavailable; email remains available"
+            "description": "Private device session required"
           }
-        }
-      }
-    },
-    "/api/auth/methods": {
-      "get": {
-        "summary": "Return available sign-in methods without exposing provider configuration",
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Boolean phone and email availability"
+        },
+        "security": [
+          {
+            "workspaceCookie": []
+          },
+          {
+            "workspaceToken": []
           }
+        ]
+      },
+      "servers": [
+        {
+          "url": "/"
         }
-      }
+      ]
     }
   }
 }

@@ -15,10 +15,22 @@ export async function saveSession(token: string) {
     await SecureStore.setItemAsync("fairshare_session", token);
   }
 }
-export async function clearSession() {
-  accessToken = "";
-  if (Platform.OS !== "web")
-    await SecureStore.deleteItemAsync("fairshare_session");
+let workspaceRequest: Promise<any> | null = null;
+export function openWorkspace() {
+  if (workspaceRequest) return workspaceRequest;
+  const initialize = async () => {
+    await restoreSession();
+    const result = await api("/workspace", "POST", {});
+    await saveSession(result.token);
+    return result;
+  };
+  const locks = Platform.OS === "web" ? (navigator as any).locks : null;
+  workspaceRequest = (
+    locks ? locks.request("fairshare-workspace", initialize) : initialize()
+  ).finally(() => {
+    workspaceRequest = null;
+  });
+  return workspaceRequest!;
 }
 export async function api(path: string, method = "GET", body?: unknown) {
   if (Platform.OS !== "web" && !base)

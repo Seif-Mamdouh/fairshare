@@ -28,41 +28,32 @@ test("complete API journey, authorization, receipt concurrency, and MCP", async 
     expenseId = "",
     invite = "";
   const bearer = (key = auth) => ({ Authorization: "Bearer " + key });
-  await t.test("authentication and cookie sessions", async () => {
+  await t.test("automatic private workspaces and cookie sessions", async () => {
     await http.get("/api/groups").expect(401);
-    const result = await http
-      .post("/api/auth/register")
-      .send({
-        name: "Ava",
-        email: "ava@example.test",
-        password: "a-secure-test-password",
-      })
-      .expect(201);
+    const result = await http.post("/api/workspace").send({}).expect(201);
     auth = result.body.token;
     assert.ok(result.headers["set-cookie"][0].includes("HttpOnly"));
     await http
       .get("/api/me")
       .set("Cookie", result.headers["set-cookie"])
       .expect(200);
-    const login = await http
-      .post("/api/auth/login")
-      .send({ email: "AVA@example.test", password: "a-secure-test-password" })
-      .expect(200);
-    assert.equal(login.body.user.name, "Ava");
     await http
-      .post("/api/auth/login")
-      .send({ email: "ava@example.test", password: "incorrect" })
-      .expect(401);
-    other = (
-      await http
-        .post("/api/auth/register")
-        .send({
-          name: "Other",
-          email: "other@example.test",
-          password: "another-test-password",
-        })
-        .expect(201)
-    ).body.token;
+      .post("/api/me/name")
+      .set(bearer())
+      .send({ name: "Ava" })
+      .expect(200);
+    const resumed = await http
+      .post("/api/workspace")
+      .set(bearer())
+      .send({})
+      .expect(200);
+    assert.equal(resumed.body.user.id, result.body.user.id);
+    other = (await http.post("/api/workspace").send({}).expect(201)).body.token;
+    await http
+      .post("/api/me/name")
+      .set(bearer(other))
+      .send({ name: "Other" })
+      .expect(200);
   });
   await t.test("group isolation and members", async () => {
     gid = (
@@ -325,16 +316,19 @@ test("complete API journey, authorization, receipt concurrency, and MCP", async 
       }
     },
   );
-  await t.test("revocation and logout invalidate credentials", async () => {
-    const id = (await http.get("/api/v1/agent/context").set(bearer(agentKey)))
-      .body.agent.id;
-    await http
-      .delete("/api/groups/" + gid + "/agents/" + id)
-      .set(bearer())
-      .expect(200);
-    await http.get("/api/v1/agent/context").set(bearer(agentKey)).expect(401);
-    await http.post("/api/auth/logout").set(bearer()).expect(200);
-    await http.get("/api/me").set(bearer()).expect(401);
-  });
+  await t.test(
+    "agent and workspace revocation invalidate credentials",
+    async () => {
+      const id = (await http.get("/api/v1/agent/context").set(bearer(agentKey)))
+        .body.agent.id;
+      await http
+        .delete("/api/groups/" + gid + "/agents/" + id)
+        .set(bearer())
+        .expect(200);
+      await http.get("/api/v1/agent/context").set(bearer(agentKey)).expect(401);
+      await http.delete("/api/workspace/session").set(bearer()).expect(200);
+      await http.get("/api/me").set(bearer()).expect(401);
+    },
+  );
   await db.close();
 });

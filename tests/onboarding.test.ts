@@ -74,17 +74,18 @@ test("invite acceptance, scoped selection, and observed agent connections", asyn
     await db.query(sql);
   const http = request(createApp(db));
   const auth = (key: string) => ({ Authorization: "Bearer " + key });
-  const register = async (name: string) =>
-    (
+  const register = async (name: string) => {
+    const result = (await http.post("/api/workspace").send({}).expect(201))
+      .body;
+    result.user = (
       await http
-        .post("/api/auth/register")
-        .send({
-          name,
-          email: name + "@example.test",
-          password: "onboarding-test-password",
-        })
-        .expect(201)
+        .post("/api/me/name")
+        .set(auth(result.token))
+        .send({ name })
+        .expect(200)
     ).body;
+    return result;
+  };
   const owner = await register("Owner");
   const groupId = (
     await http
@@ -128,7 +129,7 @@ test("invite acceptance, scoped selection, and observed agent connections", asyn
   );
   const person = await register("Invitee");
   await t.test(
-    "new account can join from the same invitation exactly once",
+    "new private workspace can join from the same invitation exactly once",
     async () => {
       for (let i = 0; i < 2; i++)
         await http
