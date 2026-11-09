@@ -3,13 +3,11 @@ import express, {
   type Response,
   type NextFunction,
 } from "express";
-import { installPhoneAuth } from "./phone-auth";
-import { configuredPhoneProvider, type PhoneProvider } from "./phone-provider";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z, ZodError } from "zod";
 import type { Database } from "./db";
-import { hash, token, passwordHash, verifyPassword } from "./auth";
+import { hash, token } from "./auth";
 import {
   balances,
   simplifyDebts,
@@ -33,10 +31,7 @@ const fail = (status: number, message: string): never => {
 const uid = () => randomUUID();
 const nameSchema = z.string().trim().min(1).max(80);
 const param = (req: Request, name: string) => String(req.params[name]);
-export function createApp(
-  db: Database,
-  options: { phoneProvider?: PhoneProvider | null } = {},
-) {
+export function createApp(db: Database) {
   const app = express();
   app.disable("x-powered-by");
   // Vercel overwrites X-Forwarded-For; trust its single ingress hop only there.
@@ -81,11 +76,17 @@ export function createApp(
   async function user(req: Request) {
     const rows = (
       await db.query(
-        "SELECT u.id,u.name,u.email,u.phone_e164 FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()",
+        "SELECT u.id,u.name FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()",
         [hash(credential(req))],
       )
     ).rows;
-    return rows[0] || fail(401, "Sign in to continue");
+    return (
+      rows[0] ||
+      fail(
+        401,
+        "Your workspace session is unavailable. Reload to open a private workspace.",
+      )
+    );
   }
   async function groupAccess(req: Request, groupId: string, owner = false) {
     const u = await user(req);
@@ -109,33 +110,16 @@ export function createApp(
     ).rows[0];
     if (r.hits > max) fail(429, "Too many requests. Try again in 15 minutes.");
   }
-  async function session(res: Response, userId: string) {
-    const value = token("fs_");
-    await db.query(
-      "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '30 days')",
-      [hash(value), userId],
-    );
+  function saveCookie(res: Response, value: string) {
     res.cookie("fairshare_session", value, {
       httpOnly: true,
       secure:
         process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
       sameSite: "strict",
-      maxAge: 30 * 86400000,
+      maxAge: 365 * 86400000,
       path: "/",
     });
-    return value;
   }
-  installPhoneAuth(app, {
-    db,
-    provider:
-      options.phoneProvider === undefined
-        ? configuredPhoneProvider()
-        : options.phoneProvider,
-    user,
-    session,
-    limit,
-    route: asyncRoute,
-  });
   async function validateExpense(
     connection: Database,
     gid: string,
@@ -255,73 +239,78 @@ export function createApp(
     }),
   );
   app.post(
-    "/api/auth/register",
+    "/api/workspace",
     asyncRoute(async (req, res) => {
-      await limit("auth-ip:" + req.ip);
-      const data = z
-        .object({
-          name: nameSchema,
-          email: z.string().email().max(254),
-          password: z.string().min(10).max(128),
-        })
-        .parse(req.body);
-      await limit("auth:" + data.email.toLowerCase());
-      const id = uid();
-      try {
-        await db.query(
-          "INSERT INTO users(id,name,email,password_hash) VALUES($1,$2,$3,$4)",
-          [
-            id,
-            data.name,
-            data.email.toLowerCase(),
-            await passwordHash(data.password),
-          ],
-        );
-      } catch (e: any) {
-        if (e.code === "23505") fail(409, "This email is already registered");
-        throw e;
+      z.object({})
+        .strict()
+        .parse(req.body || {});
+      const value = credential(req);
+      if (value) {
+        const existing = (
+          await db.query(
+            "UPDATE sessions SET expires_at=now()+interval '365 days' WHERE token_hash=$1 AND expires_at>now() RETURNING user_id",
+            [hash(value)],
+          )
+        ).rows[0];
+        if (existing) {
+          const current = (
+            await db.query("SELECT id,name FROM users WHERE id=$1", [
+              existing.user_id,
+            ])
+          ).rows[0];
+          if (current) {
+            saveCookie(res, value);
+            res.json({
+              ...(req.headers.origin || req.headers["sec-fetch-mode"]
+                ? {}
+                : { token: value }),
+              user: current,
+              created: false,
+            });
+            return;
+          }
+        }
       }
-      res.status(201).json({
-        token: await session(res, id),
-        user: { id, name: data.name, email: data.email.toLowerCase() },
+      await limit("workspace-new:" + req.ip, 20);
+      const id = uid(),
+        valueNew = token("fs_"),
+        name = "Guest " + id.slice(0, 4);
+      await db.transaction(async (tx) => {
+        await tx.query("INSERT INTO users(id,name) VALUES($1,$2)", [id, name]);
+        await tx.query(
+          "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '365 days')",
+          [hash(valueNew), id],
+        );
       });
+      saveCookie(res, valueNew);
+      res
+        .status(201)
+        .json({
+          ...(req.headers.origin || req.headers["sec-fetch-mode"]
+            ? {}
+            : { token: valueNew }),
+          user: { id, name },
+          created: true,
+        });
     }),
   );
   app.post(
-    "/api/auth/login",
+    "/api/me/name",
     asyncRoute(async (req, res) => {
-      await limit("auth-ip:" + req.ip);
-      const data = z
-        .object({
-          email: z.string().email().max(254),
-          password: z.string().max(128),
-        })
-        .parse(req.body);
-      await limit("auth:" + data.email.toLowerCase());
-      const u = (
-        await db.query("SELECT * FROM users WHERE email=$1", [
-          data.email.toLowerCase(),
-        ])
-      ).rows[0];
-      const dummy = "0".repeat(32) + ":" + "0".repeat(128);
-      const valid = await verifyPassword(
-        data.password,
-        u?.password_hash || dummy,
-      );
-      if (!u || !valid) fail(401, "Incorrect email or password");
-      res.json({
-        token: await session(res, u.id),
-        user: {
-          id: u.id,
-          name: u.name,
-          email: u.email,
-          phone_e164: u.phone_e164,
-        },
+      const u = await user(req);
+      const { name } = z.object({ name: nameSchema }).strict().parse(req.body);
+      await db.transaction(async (tx) => {
+        await tx.query("UPDATE users SET name=$1 WHERE id=$2", [name, u.id]);
+        await tx.query("UPDATE members SET name=$1 WHERE user_id=$2", [
+          name,
+          u.id,
+        ]);
       });
+      res.json({ id: u.id, name });
     }),
   );
-  app.post(
-    "/api/auth/logout",
+  app.delete(
+    "/api/workspace/session",
     asyncRoute(async (req, res) => {
       await db.query("DELETE FROM sessions WHERE token_hash=$1", [
         hash(credential(req)),

@@ -16,7 +16,6 @@ import {
 import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
 import { C, icon, Button, Field, Pills, Card, Tag } from "./client/components";
-import { PhoneAuth } from "./client/PhoneAuth";
 import { ExpenseHome } from "./client/ExpenseHome";
 import { ExpenseEditor } from "./client/ExpenseEditor";
 import { AgentSetup } from "./client/AgentSetup";
@@ -34,7 +33,7 @@ import {
   agentConnectionLabel,
 } from "./shared/onboarding";
 import * as ImagePicker from "expo-image-picker";
-import { api, saveSession, clearSession, restoreSession } from "./client/api";
+import { api, openWorkspace } from "./client/api";
 import {
   money,
   parseMoney,
@@ -63,12 +62,6 @@ export default function App() {
   const [summaries, setSummaries] = useState<any[]>([]);
   const [groupOpen, setGroupOpen] = useState(false);
   const [composeGroup, setComposeGroup] = useState("");
-  const [phoneAvailable, setPhoneAvailable] = useState(false);
-  const [authChannel, setAuthChannel] = useState("Email");
-  const [authMode, setAuthMode] = useState("login"),
-    [email, setEmail] = useState(""),
-    [password, setPassword] = useState(""),
-    [name, setName] = useState("");
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -80,23 +73,6 @@ export default function App() {
   const [pendingInvite, setPendingInvite] = useState<string | null>(null),
     [invitation, setInvitation] = useState<any>(null),
     [inviteError, setInviteError] = useState("");
-  useEffect(() => {
-    void api("/auth/methods")
-      .then((methods) => {
-        setPhoneAvailable(methods.phone);
-        if (methods.phone) setAuthChannel("Phone");
-      })
-      .catch(() => {});
-  }, []);
-  async function finishPhoneAuth(data: any) {
-    await saveSession(data.token);
-    setUser(data.user);
-    await loadGroups();
-    if (modal === "Account") {
-      closeModal();
-      setNotice("Phone verified and linked to your account");
-    }
-  }
   const inviteRequest = useRef(0);
   async function showInvite(token: string) {
     const request = ++inviteRequest.current;
@@ -201,20 +177,23 @@ export default function App() {
       setBusy(false);
     }
   }
+  async function initializeWorkspace() {
+    setBoot(true);
+    setError("");
+    try {
+      const pending = await initialInvite();
+      if (pending) await showInvite(pending);
+      const workspace = await openWorkspace();
+      setUser(workspace.user);
+      await loadGroups();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBoot(false);
+    }
+  }
   useEffect(() => {
-    void (async () => {
-      try {
-        const token = await initialInvite();
-        if (token) await showInvite(token);
-        await restoreSession();
-        const me = await api("/me");
-        setUser(me);
-        await loadGroups();
-      } catch {
-      } finally {
-        setBoot(false);
-      }
-    })();
+    void initializeWorkspace();
   }, []);
   useEffect(() => {
     const receive = (url: string) => {
@@ -231,26 +210,13 @@ export default function App() {
         window.removeEventListener("hashchange", hashChange);
     };
   }, []);
-  async function authenticate() {
-    await run(async () => {
-      const data = await api("/auth/" + authMode, "POST", {
-        name,
-        email,
-        password,
-      });
-      await saveSession(data.token);
-      setUser(data.user);
-      setPassword("");
-      await loadGroups();
-    });
-  }
   function open(kind: string, initial: any = {}) {
     setError("");
     setNotice("");
     setImage("");
     setNewKey("");
     setForm({
-      name: "",
+      name: kind === "Workspace" ? user.name : "",
       currency: "USD",
       title: "",
       amount: "",
@@ -300,7 +266,11 @@ export default function App() {
     await run(async () => {
       const path = "/groups/" + selected;
       let done = "Saved";
-      if (modal === "New group") {
+      if (modal === "Workspace") {
+        setUser(await api("/me/name", "POST", { name: form.name }));
+        await loadGroups();
+        done = "Display name updated";
+      } else if (modal === "New group") {
         const g = await api("/groups", "POST", {
           name: form.name,
           currency: form.currency,
@@ -458,172 +428,16 @@ export default function App() {
     <SafeAreaView style={s.root}>
       <StatusBar style="dark" />
       {!user ? (
-        <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            padding: 24,
-            justifyContent: "center",
-            backgroundColor: "white",
-          }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View
-            style={{
-              maxWidth: 400,
-              width: "100%",
-              alignSelf: "center",
-              paddingVertical: 32,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 34,
-                color: C.green,
-                fontWeight: "700",
-                letterSpacing: -1,
-                marginBottom: 12,
-              }}
-            >
-              fairshare
-            </Text>
-            <Text style={{ fontSize: 18, color: C.ink, marginBottom: 30 }}>
-              Split expenses with your people.
-            </Text>
-            <Card
-              style={{ width: "100%", padding: 0, gap: 12, borderWidth: 0 }}
-            >
-              {pendingInvite && (
-                <View
-                  style={{
-                    padding: 16,
-                    backgroundColor: C.pale,
-                    borderRadius: 10,
-                    gap: 10,
-                    marginBottom: 16,
-                  }}
-                >
-                  <Text style={s.subtitle}>
-                    {invitation
-                      ? `Join ${invitation.name}`
-                      : inviteError
-                        ? "Invitation unavailable"
-                        : "Opening your invitation…"}
-                  </Text>
-                  <Text style={s.muted}>
-                    {inviteError ||
-                      "Sign in or create an account, then join this group. Your invitation will be kept while you sign in."}
-                  </Text>
-                  <Button
-                    secondary
-                    small
-                    label="Dismiss invitation"
-                    onPress={() => void dismissInvite()}
-                  />
-                </View>
-              )}
-              <Pills
-                items={["Phone", "Email"]}
-                value={authChannel}
-                onChange={setAuthChannel}
-              />
-              {authChannel === "Phone" ? (
-                <View style={{ gap: 16, marginTop: 16 }}>
-                  <Text style={s.heading}>Welcome to Fairshare.</Text>
-                  <PhoneAuth
-                    available={phoneAvailable}
-                    onComplete={finishPhoneAuth}
-                  />
-                  <Text style={s.muted}>
-                    Already use email here? Sign in with email first, then link
-                    your phone in Account to keep your groups.
-                  </Text>
-                  <Button
-                    secondary
-                    label="Sign in with email"
-                    onPress={() => setAuthChannel("Email")}
-                  />
-                </View>
-              ) : (
-                <>
-                  <Text style={s.heading}>
-                    {authMode === "register"
-                      ? "Create an account"
-                      : "Welcome back"}
-                  </Text>
-                  <Text style={[s.muted, { marginBottom: 20 }]}>
-                    {authMode === "register"
-                      ? "Track shared expenses with your people."
-                      : "Sign in to see your groups and balances."}
-                  </Text>
-                  {authMode === "register" && (
-                    <Field
-                      label="Your name"
-                      value={name}
-                      onChangeText={setName}
-                      autoComplete="name"
-                    />
-                  )}
-                  <Field
-                    label="Email"
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    autoComplete="email"
-                  />
-                  <Field
-                    label="Password"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    autoComplete={
-                      authMode === "register"
-                        ? "new-password"
-                        : "current-password"
-                    }
-                    placeholder={
-                      authMode === "register"
-                        ? "At least 10 characters"
-                        : "Your password"
-                    }
-                  />
-                  {error && (
-                    <Text accessibilityRole="alert" style={s.error}>
-                      {error}
-                    </Text>
-                  )}
-                  <Button
-                    label={
-                      busy
-                        ? "One moment…"
-                        : authMode === "register"
-                          ? "Create your account →"
-                          : "Sign in →"
-                    }
-                    onPress={authenticate}
-                    disabled={busy}
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      setAuthMode(
-                        authMode === "register" ? "login" : "register",
-                      );
-                      setError("");
-                    }}
-                    style={{ paddingTop: 15 }}
-                  >
-                    <Text style={[s.muted, { textAlign: "center" }]}>
-                      {authMode === "register"
-                        ? "Already here? Sign in"
-                        : "New here? Create an account"}
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-            </Card>
-          </View>
-        </ScrollView>
+        <View style={[s.center, { flex: 1, padding: 28, gap: 18 }]}>
+          <Text style={s.heading}>Couldn’t open your workspace</Text>
+          <Text accessibilityRole="alert" style={s.error}>
+            {error || "Check your connection and try again."}
+          </Text>
+          <Button
+            label="Try again"
+            onPress={() => void initializeWorkspace()}
+          />
+        </View>
       ) : pendingInvite ? (
         <ScrollView
           contentContainerStyle={{
@@ -658,9 +472,9 @@ export default function App() {
                   add expenses, and review receipt drafts.
                 </Text>
                 <Text style={[s.muted, { lineHeight: 21 }]}>
-                  Joining creates your own profile. If the owner already tracks
-                  someone with your name, that named person’s earlier shares
-                  stay separate.
+                  Joining uses your private workspace profile. If the owner
+                  already tracks someone with your name, that named person’s
+                  earlier shares stay separate.
                 </Text>
               </>
             )}
@@ -720,18 +534,6 @@ export default function App() {
               );
               await refresh();
               setNotice("Receipt rejected");
-            })
-          }
-          onSignOut={() =>
-            void run(async () => {
-              await api("/auth/logout", "POST");
-              await clearSession();
-              setUser(null);
-              setGroup(null);
-              setGroups([]);
-              setSummaries([]);
-              setSelected("");
-              setGroupOpen(false);
             })
           }
         />
@@ -852,7 +654,7 @@ export default function App() {
                     )}
                     {modal === "Add person" && (
                       <Text style={s.muted}>
-                        Track this person’s share without an account. They will
+                        Track this person’s share by name. They will
                         not get a message or app access. To let them
                         participate, share a people invitation link from
                         Members.
@@ -904,25 +706,24 @@ export default function App() {
                   <Button secondary label="Done" onPress={closeModal} />
                 </View>
               )}
-              {modal === "Account" && (
+              {modal === "Workspace" && (
                 <View style={{ gap: 16 }}>
-                  <Text style={s.subtitle}>{user.name}</Text>
-                  {!!user.email && (
-                    <Text style={s.muted}>
-                      Email sign-in remains available.
-                    </Text>
-                  )}
-                  <Text style={s.muted}>
-                    {user.phone_e164
-                      ? "A verified phone number is linked. Verify another number below only if you want to replace it."
-                      : "Link your phone to keep using this account and all its groups."}
-                  </Text>
-                  <PhoneAuth
-                    link
-                    available={phoneAvailable}
-                    onComplete={finishPhoneAuth}
+                  <Field
+                    label="Display name"
+                    value={form.name}
+                    onChangeText={(v: string) => set("name", v)}
+                    autoComplete="nickname"
                   />
-                  <Button secondary label="Done" onPress={closeModal} />
+                  <Text style={[s.muted, { lineHeight: 22 }]}>
+                    Your name appears in shared groups. Changing it does not
+                    merge anyone’s expenses or profiles.
+                  </Text>
+                  <Text style={[s.muted, { lineHeight: 22 }]}>
+                    This private workspace is remembered on this device.
+                    Clearing browser or app storage, switching devices, or
+                    letting the session expire starts a separate workspace.
+                    There is no automatic recovery or cross-device sign-in.
+                  </Text>
                 </View>
               )}
               {modal === "Join a group" && (
@@ -1155,7 +956,6 @@ export default function App() {
                   modal,
                 ) &&
                 !form.agentId &&
-                modal !== "Account" &&
                 modal !== "Invitation link" && (
                   <View style={{ marginTop: 24, gap: 12 }}>
                     <Button

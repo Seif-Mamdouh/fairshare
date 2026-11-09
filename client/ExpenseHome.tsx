@@ -80,7 +80,6 @@ export function ExpenseHome({
   onSelect,
   onBack,
   onOpen,
-  onSignOut,
   onReview,
   onCopyInvite,
   onShareInvite,
@@ -168,7 +167,7 @@ export function ExpenseHome({
     ["Friends", "users"],
     ["Groups", "grid"],
     ["Activity", "activity"],
-    ["Account", "user"],
+    ["Workspace", "user"],
   ];
   const navButton = (item: string[]) => (
     <Pressable
@@ -646,8 +645,8 @@ export function ExpenseHome({
                           </Text>
                           <Text style={h.small}>
                             {m.user_id
-                              ? "Has an account"
-                              : "Tracked by name · no app access"}
+                              ? "Joined this group"
+                              : "Tracked by name · not joined"}
                           </Text>
                         </View>
                       </View>
@@ -1072,28 +1071,34 @@ export function ExpenseHome({
                   </View>
                   <View>
                     <Text style={h.groupRowTitle}>{user.name}</Text>
-                    <Text style={h.small}>Your Fairshare account</Text>
+                    <Text style={h.small}>
+                      Private workspace on this device
+                    </Text>
                   </View>
                 </View>
-                <Text style={h.sectionStrip}>ACCOUNT</Text>
+                <Text style={h.sectionStrip}>WORKSPACE</Text>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => onOpen("Account")}
+                  onPress={() => onOpen("Workspace")}
                   style={[h.settingRow, { paddingHorizontal: 20 }]}
                 >
                   {icon("smartphone", 22)}
                   <Text style={{ flex: 1, fontSize: 16 }}>
-                    Phone sign-in & account
+                    Display name & workspace
                   </Text>
                   {icon("chevron-right", 18)}
                 </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={onSignOut}
-                  style={{ padding: 22 }}
+                <Text
+                  style={{
+                    padding: 20,
+                    color: C.muted,
+                    fontSize: 13,
+                    lineHeight: 21,
+                  }}
                 >
-                  <Text style={h.textAction}>Log out</Text>
-                </Pressable>
+                  Your workspace stays private on this device. A new device or
+                  cleared browser storage starts a separate workspace.
+                </Text>
                 <Text style={{ padding: 20, color: C.muted, fontSize: 12 }}>
                   Fairshare · shared expenses for your people
                 </Text>
