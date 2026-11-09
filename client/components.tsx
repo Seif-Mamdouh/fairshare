@@ -2,15 +2,15 @@ import React from "react";
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 export const C = {
-  bg: "#F6F7F3",
+  bg: "#F7F9F8",
   paper: "#FFFFFF",
-  ink: "#202A25",
-  muted: "#737D75",
-  line: "#E3E7DF",
-  green: "#216E4E",
+  ink: "#373B3F",
+  muted: "#858A8E",
+  line: "#E8EAEA",
+  green: "#3C8876",
   lime: "#D9ED9A",
-  pale: "#EDF4E6",
-  red: "#B04738",
+  pale: "#E9F6F3",
+  red: "#D65D2A",
 };
 export const icon = (name: any, size = 18, color = C.ink) => (
   <Feather name={name} size={size} color={color} />
@@ -107,7 +107,7 @@ export function Tag({ text }: any) {
 const s = StyleSheet.create({
   button: {
     backgroundColor: C.green,
-    borderRadius: 9,
+    borderRadius: 5,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: "center",
@@ -120,7 +120,7 @@ const s = StyleSheet.create({
     minHeight: 46,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 9,
+    borderRadius: 5,
     paddingHorizontal: 12,
     paddingVertical: 11,
     fontSize: 14,
@@ -138,13 +138,13 @@ const s = StyleSheet.create({
   },
   card: {
     backgroundColor: C.paper,
-    borderRadius: 17,
+    borderRadius: 5,
     padding: 24,
     borderWidth: 1,
     borderColor: C.line,
   },
   tag: {
-    backgroundColor: "#E7EFD8",
+    backgroundColor: "#E9F6F3",
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 5,

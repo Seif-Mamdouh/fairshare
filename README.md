@@ -84,3 +84,7 @@ References: [Expo web deployment](https://docs.expo.dev/guides/publishing-websit
 ## Phone sign-in
 
 Phone-number-first sign-in and authenticated phone linking are implemented behind real Twilio Verify configuration. Email access remains available until activation. Saved sessions last 30 days; a new device must verify a code even when the number exists. See [phone setup and limits](docs/PHONE_AUTH.md). No live SMS delivery has been validated without provider access.
+
+## Everyday expense interface
+
+Groups, Friends, Activity, and Account provide a compact list-based interface. Open a group to add expenses, inspect balances and totals, or record external payments. Group settings contains people/invitations and the optional receipt inbox and agent connections. The expense form's paid-by/split control opens Equal/Exact and Whole group/Selected people choices. Expense rows show your net share, and overall totals keep currencies separate. The visual reference and reconstruction limits are documented in `docs/REVERSE_ENGINEERING.md`.

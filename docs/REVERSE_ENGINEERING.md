@@ -50,3 +50,13 @@ REST is the integration contract; a local MCP adapter can expose the same operat
 - The public asset sample is not the authenticated expense application. Its lack of ledger findings does not establish that those features are absent from Splitwise.
 
 The feature-reference question is partially answered; public asset composition is answered within the captured three-file sample; native implementation and algorithm equivalence remain unresolved.
+
+## Visual reconstruction: November 8, 2026
+
+The UI redesign uses the five screenshots currently served by the [official App Store listing](https://apps.apple.com/us/app/splitwise/id458023433), plus the official [2019 redesign article](https://blog.splitwise.com/2019/07/09/splitwise-redesigned/). These screenshots were actually viewed; source-image manifests are retained in the task's `work/splitwise-evidence` folder. This is visual evidence, not decompiled native source or a live authenticated Splitwise session.
+
+Observed in the current listing: white flat group rows; teal credits and orange debts; compact geometric group covers with overlapping square avatars; group names and inline balances; month-grouped expense rows with date, category, payer/total, and the viewer's net share; a sparse expense composer with description, amount, and the paid-by/split sentence. The historical official article confirms Friends/Groups/central add/Activity/Account navigation, friends rows, and activity rows. The current listing crops the bottom navigation, so the latest native navigation version is not established.
+
+Fairshare adopts those structures, colors, and density while retaining its own name and independent code. Desktop adapts navigation into a sidebar. The [official split-options help](https://kb.splitwise.com/balances-and-expenses/what-are-different-ways-i-can-split-an-expense) establishes the paid-by/equally entry point; our Equal/Exact selector is independently designed because a genuine split-selection screenshot was not available. Fairshare does not claim to implement all Splitwise features, payment processing, percentage splits, or its proprietary code. Agents and receipt review remain available under group settings.
+
+Verification used a 390×844 mobile viewport and desktop rendering with explicitly isolated local fixtures. No real user records or live synthetic accounts were created for this redesign. Expense-share display, currency-separated totals, and PostgreSQL date serialization have dedicated tests.
