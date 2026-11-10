@@ -1079,6 +1079,17 @@ export function ExpenseHome({
                 <Text style={h.sectionStrip}>WORKSPACE</Text>
                 <Pressable
                   accessibilityRole="button"
+                  onPress={() => onOpen("Banks")}
+                  style={[h.settingRow, { paddingHorizontal: 20 }]}
+                >
+                  {icon("credit-card", 22)}
+                  <Text style={{ flex: 1, fontSize: 16 }}>
+                    Banks & private transactions
+                  </Text>
+                  {icon("chevron-right", 18)}
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
                   onPress={() => onOpen("Workspace")}
                   style={[h.settingRow, { paddingHorizontal: 20 }]}
                 >

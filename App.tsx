@@ -16,6 +16,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
 import { C, icon, Button, Field, Pills, Card, Tag } from "./client/components";
+import { Banking } from "./client/Banking";
 import { ExpenseHome } from "./client/ExpenseHome";
 import { ExpenseEditor } from "./client/ExpenseEditor";
 import { AgentSetup } from "./client/AgentSetup";
@@ -186,6 +187,11 @@ export default function App() {
       const workspace = await openWorkspace();
       setUser(workspace.user);
       await loadGroups();
+      if (
+        Platform.OS === "web" &&
+        window.location.search.includes("oauth_state_id")
+      )
+        setModal("Banks");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -654,10 +660,9 @@ export default function App() {
                     )}
                     {modal === "Add person" && (
                       <Text style={s.muted}>
-                        Track this person’s share by name. They will
-                        not get a message or app access. To let them
-                        participate, share a people invitation link from
-                        Members.
+                        Track this person’s share by name. They will not get a
+                        message or app access. To let them participate, share a
+                        people invitation link from Members.
                       </Text>
                     )}
                     {modal === "Add agent" && (
@@ -705,6 +710,13 @@ export default function App() {
                   />
                   <Button secondary label="Done" onPress={closeModal} />
                 </View>
+              )}
+              {modal === "Banks" && (
+                <Banking
+                  user={user}
+                  groups={groups}
+                  onImported={() => loadGroups(selected)}
+                />
               )}
               {modal === "Workspace" && (
                 <View style={{ gap: 16 }}>
@@ -956,7 +968,8 @@ export default function App() {
                   modal,
                 ) &&
                 !form.agentId &&
-                modal !== "Invitation link" && (
+                modal !== "Invitation link" &&
+                modal !== "Banks" && (
                   <View style={{ marginTop: 24, gap: 12 }}>
                     <Button
                       disabled={busy}

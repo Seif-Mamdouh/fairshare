@@ -19,6 +19,7 @@ export function ExpenseEditor({
   onPickImage,
   receipt = false,
   review = false,
+  lockedAmount = false,
 }: any) {
   const [page, setPage] = useState("main");
   const set = (key: string, value: any) =>
@@ -229,6 +230,7 @@ export function ExpenseEditor({
           </View>
           <TextInput
             accessibilityLabel={`Amount (${group.currency})`}
+            editable={!lockedAmount}
             placeholder="0.00"
             placeholderTextColor="#969A9B"
             value={form.amount}

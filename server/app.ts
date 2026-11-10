@@ -3,6 +3,8 @@ import express, {
   type Response,
   type NextFunction,
 } from "express";
+import { installBanking } from "./banking";
+import { configuredBanking, type Banking } from "./bank-provider";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z, ZodError } from "zod";
@@ -31,7 +33,10 @@ const fail = (status: number, message: string): never => {
 const uid = () => randomUUID();
 const nameSchema = z.string().trim().min(1).max(80);
 const param = (req: Request, name: string) => String(req.params[name]);
-export function createApp(db: Database) {
+export function createApp(
+  db: Database,
+  options: { banking?: Banking | null } = {},
+) {
   const app = express();
   app.disable("x-powered-by");
   // Vercel overwrites X-Forwarded-For; trust its single ingress hop only there.
@@ -283,15 +288,13 @@ export function createApp(db: Database) {
         );
       });
       saveCookie(res, valueNew);
-      res
-        .status(201)
-        .json({
-          ...(req.headers.origin || req.headers["sec-fetch-mode"]
-            ? {}
-            : { token: valueNew }),
-          user: { id, name },
-          created: true,
-        });
+      res.status(201).json({
+        ...(req.headers.origin || req.headers["sec-fetch-mode"]
+          ? {}
+          : { token: valueNew }),
+        user: { id, name },
+        created: true,
+      });
     }),
   );
   app.post(
@@ -674,6 +677,15 @@ export function createApp(db: Database) {
       res.json(r);
     }),
   );
+  installBanking(app, {
+    db,
+    banking:
+      options.banking === undefined ? configuredBanking() : options.banking,
+    user,
+    limit,
+    route: asyncRoute,
+    addExpense,
+  });
   app.use("/api", (_req, res) =>
     res.status(404).json({ error: "Endpoint not found" }),
   );

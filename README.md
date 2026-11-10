@@ -88,3 +88,7 @@ Groups, Friends, Activity, and Workspace provide a compact list-based interface.
 ## Private device workspaces
 
 Opening the app automatically creates or resumes a private workspace. Existing valid sessions retain their original user ID, groups, and records. A fresh device receives a new empty identity and cannot access other groups without an invitation. Set a display name from Workspace at any time; it is not a registration step. See [workspace persistence](docs/WORKSPACES.md).
+
+## Private bank transactions
+
+Connect a US bank through Plaid, privately review transactions, and explicitly share selected purchases as expenses. Sandbox uses fake bank data. See [banking setup, privacy, APIs and native build requirements](docs/BANKING.md).
