@@ -92,4 +92,3 @@ Opening the app automatically creates or resumes a private workspace. Existing v
 ## Private bank transactions
 
 Connect a US bank through Plaid, privately review transactions, and explicitly share selected purchases as expenses. Sandbox uses fake bank data. See [banking setup, privacy, APIs and native build requirements](docs/BANKING.md).
-
