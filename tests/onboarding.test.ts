@@ -276,3 +276,41 @@ test("invite acceptance, scoped selection, and observed agent connections", asyn
   );
   await db.close();
 });
+
+test("hosted provider configurations use header secrets and safe endpoint URLs", async () => {
+  const { hostedMcpUrl, remoteMcpConfiguration, mcpProviders } =
+    await import("../shared/onboarding");
+  const origin = "https://fairshare.example",
+    key = "private-test-key";
+  assert.equal(hostedMcpUrl(origin), origin + "/api/mcp");
+  for (const invalid of [
+    "http://remote.example",
+    "https://user:secret@example.com",
+    "https://example.com/?key=secret",
+    "https://example.com/#key",
+  ])
+    assert.throws(() => hostedMcpUrl(invalid));
+  for (const provider of mcpProviders) {
+    const config = remoteMcpConfiguration(origin, provider, key);
+    if (provider === "Codex") {
+      assert.ok(
+        config.includes('bearer_token_env_var = "FAIRSHARE_AGENT_KEY"'),
+      );
+      assert.ok(!config.includes(key));
+    } else {
+      const parsed = JSON.parse(config);
+      const server =
+        provider === "Grok API" ? parsed : parsed.mcpServers.fairshare;
+      assert.equal(server.headers.Authorization, "Bearer " + key);
+      assert.equal(
+        server.server_url || server.httpUrl || server.url,
+        origin + "/api/mcp",
+      );
+    }
+  }
+  assert.match(
+    agentInstructions(origin),
+    /hosted Streamable HTTP MCP endpoint/,
+  );
+  assert.ok(!agentInstructions(origin).includes(key));
+});

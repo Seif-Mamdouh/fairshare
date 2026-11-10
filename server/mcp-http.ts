@@ -1,0 +1,96 @@
+import type { Express, Request, RequestHandler, Response } from "express";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { ZodError } from "zod";
+import { createReceiptMcpServer } from "./mcp-tools";
+
+type AgentIdentity = { id: string; group_id: string; name: string };
+type Dependencies = {
+  route(fn: (req: Request, res: Response) => Promise<unknown>): RequestHandler;
+  authenticate(req: Request): Promise<AgentIdentity>;
+  context(agent: AgentIdentity): Promise<unknown>;
+  submit(agent: AgentIdentity, body: unknown): Promise<unknown>;
+  status(agent: AgentIdentity, receiptId: string): Promise<unknown>;
+};
+
+export function installMcp(app: Express, d: Dependencies) {
+  app.all(
+    "/api/mcp",
+    d.route(async (req, res) => {
+      // MCP never accepts browser workspace cookies, URL credentials, or a remembered
+      // transport session as authentication. Revocation is checked on every request.
+      if (!/^Bearer [^\s]+$/i.test(req.headers.authorization || "")) {
+        res.setHeader("WWW-Authenticate", 'Bearer realm="fairshare-agent"');
+        return res
+          .status(401)
+          .json({ error: "A group agent Bearer key is required" });
+      }
+      const agent = await d.authenticate(req);
+      if (Object.keys(req.query).length)
+        return res
+          .status(400)
+          .json({
+            error:
+              "Use the MCP endpoint without query parameters; pass credentials only in Authorization",
+          });
+      if (req.method !== "POST") {
+        res.setHeader("Allow", "POST, OPTIONS");
+        return res
+          .status(405)
+          .json({
+            error:
+              "This stateless MCP endpoint accepts POST; standalone SSE and session deletion are not needed",
+          });
+      }
+      const server = createReceiptMcpServer(
+        async (path, method = "GET", body) => {
+          try {
+            const result =
+              path === "/context"
+                ? await d.context(agent)
+                : path === "/receipts" && method === "POST"
+                  ? await d.submit(agent, body)
+                  : await d.status(
+                      agent,
+                      decodeURIComponent(path.slice("/receipts/".length)),
+                    );
+            return {
+              content: [{ type: "text", text: JSON.stringify(result) }],
+            };
+          } catch (error) {
+            const e = error as Error & { status?: number };
+            const status = error instanceof ZodError ? 400 : e.status || 500;
+            const message =
+              error instanceof ZodError
+                ? error.issues
+                    .map((i) => `${i.path.join(".")}: ${i.message}`)
+                    .join("; ")
+                : status < 500
+                  ? e.message
+                  : "Fairshare could not complete this request. Try again.";
+            return {
+              isError: true,
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({ error: message, status }),
+                },
+              ],
+            };
+          }
+        },
+      );
+      // A new server/transport per request is safe across Vercel instances. There is
+      // no process-local user/session map and no long-running notification stream.
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      });
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+      } finally {
+        await server.close();
+      }
+    }),
+  );
+}

@@ -20,8 +20,8 @@ Base URL: `https://YOUR_HOST/api/v1/agent`. Every call needs `Authorization: Bea
   "spentOn": "2026-11-08",
   "category": "Food & drink",
   "splits": [
-    {"memberId": "MEMBER_ID_FROM_CONTEXT", "amountMinor": 2126},
-    {"memberId": "ANOTHER_MEMBER_ID", "amountMinor": 2125}
+    { "memberId": "MEMBER_ID_FROM_CONTEXT", "amountMinor": 2126 },
+    { "memberId": "ANOTHER_MEMBER_ID", "amountMinor": 2125 }
   ],
   "notes": "Total includes tax and tip. Confirm payer before approving."
 }
@@ -53,14 +53,26 @@ The machine-readable REST definition is [../public/openapi.json](../public/opena
 
 ## MCP integration
 
-The supplied SDK-based adapter connects to the same REST endpoints over HTTPS. A generic MCP client's configuration is:
+The hosted endpoint is `https://YOUR_HOST/api/mcp`. It implements stateless Streamable HTTP with JSON responses using the official TypeScript SDK. Send `Authorization: Bearer <group-agent-key>` on every request; the URL never contains credentials. Initialize normally, then call `tools/list` / `tools/call`. The available tools are `get_group_context`, `submit_receipt`, and `get_receipt_status`. All validation, idempotency, group isolation, own-receipt access and human-review rules are shared with REST.
+
+The endpoint creates a new server/transport per HTTP POST; it has no process-local identity map or `Mcp-Session-Id`, so Vercel instances can serve requests independently. `GET` and `DELETE` return 405; standalone SSE notifications and server session deletion are not used. Notifications return 202. Clients must support Streamable HTTP and custom Authorization headers. Use HTTPS outside localhost. Existing origin checks and the shared agent request quota apply. Missing/revoked keys return 401, including after a prior successful handshake. Browser workspace cookies are not MCP credentials. This is manual group-key authentication, not OAuth: OAuth-only consumer connectors are not supported directly.
+
+Use the in-app **Hosted MCP** setup or [provider setup examples](MCP_PROVIDERS.md). No source checkout is required for hosted connections.
+
+### Optional local stdio adapter
+
+The supplied SDK-based adapter remains available and connects to the REST endpoints over HTTPS. It shares its tool definitions with the hosted transport. A generic local MCP client's configuration is:
 
 ```json
 {
   "mcpServers": {
     "fairshare": {
       "command": "node",
-      "args": ["--import", "/ABSOLUTE/PROJECT/node_modules/tsx/dist/loader.mjs", "/ABSOLUTE/PROJECT/scripts/mcp.ts"],
+      "args": [
+        "--import",
+        "/ABSOLUTE/PROJECT/node_modules/tsx/dist/loader.mjs",
+        "/ABSOLUTE/PROJECT/scripts/mcp.ts"
+      ],
       "env": {
         "FAIRSHARE_URL": "https://YOUR_HOST",
         "FAIRSHARE_AGENT_KEY": "SET_USING_YOUR_CLIENT_SECRET_SETTINGS"
@@ -80,6 +92,6 @@ Alternatively set the project working directory and run `npm run mcp`. No logs a
 
 Creating access does not connect a provider account. New credentials start with `last_used_at: null`. A valid authenticated request to an agent endpoint records a last-contact timestamp. The UI’s **Check connection** only reloads group metadata; it never calls the agent API with the saved key and cannot manufacture a successful connection. Existing receipt submissions backfill historical last contact during migration. Revoked keys stop working immediately.
 
-The setup guide offers local MCP configuration or HTTP instructions. Copying the private MCP configuration includes the key and is intended only for trusted client settings. The separate shareable setup prompt and REST example never contain a key. Group reads return connection timestamps but never keys or token hashes. Keys are held in UI memory only during creation and cleared when the dialog closes. To replace a lost key, revoke access and create new access.
+The setup guide offers hosted provider-specific MCP templates, optional local MCP configuration, and HTTP instructions. Copying the private MCP configuration includes the key and is intended only for trusted client settings. The separate shareable setup prompt and REST example never contain a key. Group reads return connection timestamps but never keys or token hashes. Keys are held in UI memory only during creation and cleared when the dialog closes. To replace a lost key, revoke access and create new access.
 
-MCP requires Node.js 22+, a local source checkout with `npm ci`, and a client supporting local stdio servers. The source repository is private and requires repository access. There is no hosted remote-MCP transport or automatic Claude/Grok OAuth connection. For HTTP-capable runtimes, store `FAIRSHARE_AGENT_KEY` in the runtime’s secret settings and use the copied setup instructions.
+Only the optional local stdio adapter requires Node.js 22+, a source checkout with `npm ci`, and repository access. Hosted MCP works without a checkout. There is no automatic provider account sign-in or OAuth connection; compatible clients use the group key in their private settings. For other HTTP-capable runtimes, use the existing REST API and store `FAIRSHARE_AGENT_KEY` in runtime secrets.

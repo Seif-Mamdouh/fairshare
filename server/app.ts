@@ -4,6 +4,7 @@ import express, {
   type NextFunction,
 } from "express";
 import { installBanking } from "./banking";
+import { installMcp } from "./mcp-http";
 import { configuredBanking, type Banking } from "./bank-provider";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -59,7 +60,7 @@ export function createApp(
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader(
         "Access-Control-Allow-Headers",
-        "Authorization,Content-Type",
+        "Authorization,Content-Type,MCP-Protocol-Version,Mcp-Session-Id,Last-Event-ID",
       );
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
     }
@@ -984,27 +985,43 @@ export function createApp(
     );
     return a;
   }
+  async function agentContext(a: {
+    id: string;
+    group_id: string;
+    name: string;
+  }) {
+    const g = (
+      await db.query("SELECT id,name,currency FROM groups WHERE id=$1", [
+        a.group_id,
+      ])
+    ).rows[0];
+    const members = (
+      await db.query(
+        "SELECT id,name FROM members WHERE group_id=$1 ORDER BY id",
+        [a.group_id],
+      )
+    ).rows;
+    return {
+      group: g,
+      members,
+      agent: { id: a.id, name: a.name },
+      capabilities: ["receipts:submit", "receipts:read-own"],
+    };
+  }
+  async function agentReceiptStatus(a: { id: string }, receiptId: string) {
+    const r = (
+      await db.query(
+        "SELECT id,status,expense_id,created_at,reviewed_at FROM receipts WHERE id=$1 AND agent_id=$2",
+        [receiptId, a.id],
+      )
+    ).rows[0];
+    if (!r) fail(404, "Receipt not found");
+    return r;
+  }
   app.get(
     "/api/v1/agent/context",
     asyncRoute(async (req, res) => {
-      const a = await agent(req);
-      const g = (
-        await db.query("SELECT id,name,currency FROM groups WHERE id=$1", [
-          a.group_id,
-        ])
-      ).rows[0];
-      const members = (
-        await db.query(
-          "SELECT id,name FROM members WHERE group_id=$1 ORDER BY id",
-          [a.group_id],
-        )
-      ).rows;
-      res.json({
-        group: g,
-        members,
-        agent: { id: a.id, name: a.name },
-        capabilities: ["receipts:submit", "receipts:read-own"],
-      });
+      res.json(await agentContext(await agent(req)));
     }),
   );
   app.post(
@@ -1018,17 +1035,16 @@ export function createApp(
   app.get(
     "/api/v1/agent/receipts/:id",
     asyncRoute(async (req, res) => {
-      const a = await agent(req);
-      const r = (
-        await db.query(
-          "SELECT id,status,expense_id,created_at,reviewed_at FROM receipts WHERE id=$1 AND agent_id=$2",
-          [param(req, "id"), a.id],
-        )
-      ).rows[0];
-      if (!r) fail(404, "Receipt not found");
-      res.json(r);
+      res.json(await agentReceiptStatus(await agent(req), param(req, "id")));
     }),
   );
+  installMcp(app, {
+    route: asyncRoute,
+    authenticate: agent,
+    context: agentContext,
+    submit: (a, body) => submitReceipt(a.group_id, body, a.id, null),
+    status: agentReceiptStatus,
+  });
   installBanking(app, {
     db,
     banking:

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Fairshare Agent API",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Group-scoped receipt submission for any agent provider. Human review required."
   },
   "servers": [
@@ -270,6 +270,136 @@
           "url": "/"
         }
       ]
+    },
+    "/api/mcp": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "summary": "Hosted Streamable HTTP MCP",
+        "operationId": "agentMcp",
+        "description": "Stateless JSON-RPC MCP endpoint. Authorization: Bearer group-agent-key is required on every request, including initialization and notifications. Accept must include application/json and text/event-stream. No OAuth discovery or persistent MCP session IDs. Tools: get_group_context, submit_receipt, get_receipt_status; human approval remains required. All receipt validation/idempotency and agent ownership rules match REST.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "MCP-Protocol-Version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Negotiated MCP protocol version on subsequent requests"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "properties": {
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "method": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCP JSON-RPC result or error; tool failures have result.isError=true",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "id": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "result": {
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted MCP notification"
+          },
+          "400": {
+            "description": "Malformed MCP request, unsupported protocol version or query parameters"
+          },
+          "401": {
+            "description": "Missing, invalid, revoked or non-agent Bearer key"
+          },
+          "403": {
+            "description": "Origin not allowed"
+          },
+          "406": {
+            "description": "Accept must include JSON and SSE"
+          },
+          "413": {
+            "description": "Payload exceeds API body limit"
+          },
+          "415": {
+            "description": "Content type must be application/json"
+          },
+          "429": {
+            "description": "Shared agent quota exceeded"
+          }
+        }
+      },
+      "get": {
+        "summary": "No standalone event stream",
+        "responses": {
+          "405": {
+            "description": "Stateless transport accepts POST only"
+          },
+          "401": {
+            "description": "Missing or invalid agent key"
+          }
+        }
+      },
+      "delete": {
+        "summary": "No persistent MCP transport session",
+        "responses": {
+          "405": {
+            "description": "There is no transport session to terminate; revoke the agent key through group settings instead"
+          },
+          "401": {
+            "description": "Missing or invalid agent key"
+          }
+        }
+      }
     }
   }
 }
