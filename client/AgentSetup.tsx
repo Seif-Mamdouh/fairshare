@@ -6,6 +6,11 @@ import {
   agentConnectionLabel,
   agentInstructions,
   mcpConfiguration,
+  hostedMcpUrl,
+  remoteMcpConfiguration,
+  mcpProviders,
+  mcpProviderGuides,
+  type McpProvider,
 } from "../shared/onboarding";
 type Agent = {
   id: string;
@@ -24,7 +29,7 @@ export function AgentSetup({
   onCheck: () => Promise<Agent>;
   onClose: () => void;
 }) {
-  const [method, setMethod] = useState("MCP client"),
+  const [method, setMethod] = useState("Hosted MCP"),
     [folder, setFolder] = useState(""),
     [showKey, setShowKey] = useState(false),
     [advanced, setAdvanced] = useState(false),
@@ -32,6 +37,7 @@ export function AgentSetup({
     [error, setError] = useState(""),
     [checking, setChecking] = useState(false),
     [status, setStatus] = useState(agent);
+  const [provider, setProvider] = useState<McpProvider>("Codex");
   const origin = appOrigin();
   async function copy(value: string, label: string) {
     setError("");
@@ -111,11 +117,79 @@ export function AgentSetup({
       )}
       <Text style={styles.title}>2. Choose your connection method</Text>
       <Pills
-        items={["MCP client", "HTTP / custom agent"]}
+        items={["Hosted MCP", "Local MCP", "HTTP / custom agent"]}
         value={method}
         onChange={setMethod}
       />
-      {method === "MCP client" ? (
+      {method === "Hosted MCP" ? (
+        <View style={styles.box}>
+          <Text style={styles.title}>Connect directly to Fairshare</Text>
+          <Text style={styles.body}>
+            No source checkout or local server is required. Choose the client or
+            API you use.
+          </Text>
+          <Pills
+            items={[...mcpProviders]}
+            value={provider}
+            onChange={setProvider}
+          />
+          <Text style={styles.body}>{mcpProviderGuides[provider].text}</Text>
+          <Text selectable style={styles.code}>
+            {hostedMcpUrl(origin)}
+          </Text>
+          <Button
+            secondary
+            small
+            label="Copy MCP endpoint"
+            onPress={() =>
+              void copy(
+                hostedMcpUrl(origin),
+                "Endpoint copied — no key is included",
+              )
+            }
+          />
+          <Button
+            label={
+              provider === "Codex"
+                ? "Copy Codex configuration"
+                : privateKey
+                  ? "Copy private provider configuration"
+                  : "Copy provider configuration template"
+            }
+            onPress={() => {
+              try {
+                void copy(
+                  remoteMcpConfiguration(
+                    origin,
+                    provider,
+                    privateKey || "REPLACE_WITH_YOUR_SAVED_KEY",
+                  ),
+                  provider === "Codex"
+                    ? "Configuration copied — set FAIRSHARE_AGENT_KEY in your Codex environment"
+                    : privateKey
+                      ? "Private configuration copied — keep it in trusted settings"
+                      : "Template copied — replace the placeholder with your saved key",
+                );
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          />
+          <Text style={styles.body}>
+            {provider === "Codex"
+              ? "Your key is read from FAIRSHARE_AGENT_KEY, not embedded in the copied configuration."
+              : "The copied configuration includes your key when available. Use only private client settings or backend secrets; never paste it into a shared conversation."}
+          </Text>
+          <Button
+            secondary
+            small
+            label="Open official provider setup guide"
+            onPress={() =>
+              void Linking.openURL(mcpProviderGuides[provider].url)
+            }
+          />
+        </View>
+      ) : method === "Local MCP" ? (
         <View style={styles.box}>
           <Text style={styles.title}>
             Add a local MCP server to your agent app
@@ -139,9 +213,8 @@ export function AgentSetup({
             }
           />
           <Text style={styles.body}>
-            The repository is private; your GitHub account needs access. If your
-            client only supports remote MCP URLs, use an HTTP-capable runtime
-            instead.
+            The repository is private; your GitHub account needs access. For
+            remote MCP clients, choose Hosted MCP above.
           </Text>
           <Field
             label="Fairshare project folder"

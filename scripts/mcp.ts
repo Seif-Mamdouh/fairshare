@@ -1,8 +1,6 @@
 import "dotenv/config";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createReceiptMcpServer } from "../server/mcp-tools";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
-import { receiptSchema } from "../shared/domain";
 async function main() {
   const base = process.env.FAIRSHARE_URL?.replace(/\/$/, "");
   const key = process.env.FAIRSHARE_AGENT_KEY;
@@ -36,40 +34,7 @@ async function main() {
       };
     }
   }
-  const server = new McpServer({
-    name: "fairshare-receipts",
-    version: "1.0.0",
-  });
-  server.registerTool(
-    "get_group_context",
-    {
-      description:
-        "Read the authorized group currency and member IDs before preparing a receipt.",
-      inputSchema: {},
-      annotations: { readOnlyHint: true },
-    },
-    () => call("/context"),
-  );
-  server.registerTool(
-    "submit_receipt",
-    {
-      description:
-        "Submit a receipt draft for human review. Reuse sourceId for retries; the same sourceId with changed content is rejected. Amounts and splits are integer minor units. This does not create an expense until approved.",
-      inputSchema: receiptSchema.shape,
-      annotations: { destructiveHint: false, idempotentHint: true },
-    },
-    (data) => call("/receipts", "POST", data),
-  );
-  server.registerTool(
-    "get_receipt_status",
-    {
-      description:
-        "Read the review status of a receipt submitted by this agent.",
-      inputSchema: { receiptId: z.string().min(1) },
-      annotations: { readOnlyHint: true },
-    },
-    ({ receiptId }) => call("/receipts/" + encodeURIComponent(receiptId)),
-  );
+  const server = createReceiptMcpServer(call);
   await server.connect(new StdioServerTransport());
 }
 main().catch((e) => {

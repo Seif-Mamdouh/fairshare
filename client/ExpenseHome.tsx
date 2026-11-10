@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { C, icon, Button } from "./components";
+import { ExpenseCharts, ExpenseSearch } from "./ExpenseInsights";
 import { money } from "../shared/domain";
 import {
   expenseImpact,
@@ -363,7 +364,8 @@ export function ExpenseHome({
                     ["Settle up", "Balances"],
                     ["Expenses", "Expenses"],
                     ["Balances", "Balances"],
-                    ["Totals", "Totals"],
+                    ["Charts", "Totals"],
+                    ["Search", "Search"],
                   ].map(([label, value], i) => (
                     <Pressable
                       key={label}
@@ -598,34 +600,17 @@ export function ExpenseHome({
                 )}
                 {section === "Totals" && (
                   <View style={h.section}>
-                    <Text style={h.sectionTitle}>Group spending</Text>
-                    <Text
-                      style={{ fontSize: 32, color: C.ink, marginVertical: 16 }}
-                    >
-                      {money(
-                        group.expenses
-                          .filter((e: any) => !e.voided_at)
-                          .reduce((n: number, e: any) => n + e.amount_minor, 0),
-                        group.currency,
-                      )}
-                    </Text>
-                    {Object.entries(
-                      group.expenses
-                        .filter((e: any) => !e.voided_at)
-                        .reduce(
-                          (out: any, e: any) => ({
-                            ...out,
-                            [e.category]:
-                              (out[e.category] || 0) + e.amount_minor,
-                          }),
-                          {},
-                        ),
-                    ).map(([name, amount]) => (
-                      <View key={name} style={h.settingRow}>
-                        <Text>{name}</Text>
-                        <Text>{money(amount as number, group.currency)}</Text>
-                      </View>
-                    ))}
+                    <ExpenseCharts group={group} />
+                  </View>
+                )}
+                {section === "Search" && (
+                  <View style={h.section}>
+                    <ExpenseSearch
+                      groups={[group]}
+                      onOpen={(_g: any, e: any) =>
+                        onOpen("Expense details", { expense: e })
+                      }
+                    />
                   </View>
                 )}
                 {section === "Members" && (
@@ -1075,6 +1060,17 @@ export function ExpenseHome({
                   </View>
                 </View>
                 <Text style={h.sectionStrip}>WORKSPACE</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => onOpen("Search expenses")}
+                  style={[h.settingRow, { paddingHorizontal: 20 }]}
+                >
+                  {icon("search", 22)}
+                  <Text style={{ flex: 1, fontSize: 16 }}>
+                    Search all expenses
+                  </Text>
+                  {icon("chevron-right", 18)}
+                </Pressable>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => onOpen("Banks")}

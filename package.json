@@ -37,6 +37,7 @@
     "react-native-plaid-link-sdk": "^13.4.1",
     "react-native-web": "^0.21.0",
     "react-plaid-link": "^5.0.0",
+    "tesseract.js": "^7.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

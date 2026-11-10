@@ -16,7 +16,9 @@ import {
 import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
 import { C, icon, Button, Field, Pills, Card, Tag } from "./client/components";
+import { expenseFromForm } from "./client/expense-form";
 import { Banking } from "./client/Banking";
+import { ExpenseSearch } from "./client/ExpenseInsights";
 import { ExpenseHome } from "./client/ExpenseHome";
 import { ExpenseEditor } from "./client/ExpenseEditor";
 import { AgentSetup } from "./client/AgentSetup";
@@ -276,6 +278,17 @@ export default function App() {
       splitMode: "Equal",
       participants: group?.members.map((m: any) => m.id) || [],
       exact: {},
+      ...(kind === "Add expense" && group?.splitDefaults
+        ? {
+            paidBy: group.splitDefaults.paidBy,
+            participants: group.splitDefaults.weights.map(
+              (w: any) => w.memberId,
+            ),
+            defaultWeights: group.splitDefaults.weights,
+            splitMode: "Saved proportions",
+            audience: "Selected people",
+          }
+        : {}),
       ...initial,
     });
     setModal(kind);
@@ -285,29 +298,7 @@ export default function App() {
   const set = (key: string, value: any) =>
     setForm((f: any) => ({ ...f, [key]: value }));
   function expenseData(): ExpenseInput {
-    if (!form.participants?.length)
-      throw new Error("Choose at least one person to split this expense with.");
-    const amountMinor = parseMoney(form.amount);
-    const splits =
-      form.splitMode === "Equal"
-        ? equalSplit(amountMinor, form.participants)
-        : form.participants.map((memberId: string) => ({
-            memberId,
-            amountMinor: parseMoney(form.exact[memberId] || "", true),
-          }));
-    if (
-      splits.reduce((n: number, part: any) => n + part.amountMinor, 0) !==
-      amountMinor
-    )
-      throw new Error("The exact shares must add up to the total.");
-    return {
-      title: form.title,
-      amountMinor,
-      paidBy: form.paidBy,
-      splits,
-      category: form.category,
-      spentOn: form.spentOn,
-    };
+    return expenseFromForm(form);
   }
   async function submit() {
     await run(async () => {
@@ -772,6 +763,17 @@ export default function App() {
                   <Button secondary label="Done" onPress={closeModal} />
                 </View>
               )}
+              {modal === "Search expenses" && (
+                <ExpenseSearch
+                  groups={summaries}
+                  onOpen={(g: any, e: any) =>
+                    void run(async () => {
+                      await selectGroup(g.id);
+                      open("Expense details", { expense: e });
+                    })
+                  }
+                />
+              )}
               {modal === "Banks" && (
                 <Banking
                   user={user}
@@ -832,6 +834,7 @@ export default function App() {
                   user={user}
                   image={image}
                   onPickImage={pickImage}
+                  onDefaultsChanged={refresh}
                   receipt={modal !== "Add expense"}
                   review={modal === "Review receipt"}
                 />
@@ -888,6 +891,43 @@ export default function App() {
                     {memberName(form.expense.paid_by)} paid{" "}
                     {money(form.expense.amount_minor, group.currency)}
                   </Text>
+                  {!!form.expense.conversion && (
+                    <Text style={s.muted}>
+                      Original:{" "}
+                      {money(
+                        form.expense.conversion.amountMinor,
+                        form.expense.conversion.currency,
+                      )}{" "}
+                      · Rate {form.expense.conversion.rate} ·{" "}
+                      {form.expense.conversion.rateDate} ·{" "}
+                      {form.expense.conversion.source}
+                    </Text>
+                  )}
+                  {!!form.expense.itemization && (
+                    <View style={{ gap: 8 }}>
+                      <Text style={s.label}>Receipt items</Text>
+                      {form.expense.itemization.items.map(
+                        (i: any, n: number) => (
+                          <Text key={n}>
+                            {i.label}: {money(i.amountMinor, group.currency)} ·{" "}
+                            {i.memberIds.map(memberName).join(", ")}
+                          </Text>
+                        ),
+                      )}
+                      <Text>
+                        Tax{" "}
+                        {money(
+                          form.expense.itemization.taxMinor,
+                          group.currency,
+                        )}{" "}
+                        · Tip{" "}
+                        {money(
+                          form.expense.itemization.tipMinor,
+                          group.currency,
+                        )}
+                      </Text>
+                    </View>
+                  )}
                   {form.expense.splits.map((part: any) => (
                     <View key={part.memberId} style={s.between}>
                       <Text style={s.muted}>
@@ -1034,7 +1074,8 @@ export default function App() {
                 ) &&
                 !form.agentId &&
                 modal !== "Invitation link" &&
-                modal !== "Banks" && (
+                modal !== "Banks" &&
+                modal !== "Search expenses" && (
                   <View style={{ marginTop: 24, gap: 12 }}>
                     <Button
                       disabled={busy}

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, Platform } from "react-native";
+import { expenseFromForm } from "./expense-form";
 import { api } from "./api";
 import { Button, C, Pills } from "./components";
 import { PlaidConnect } from "./PlaidConnect";
@@ -53,20 +54,7 @@ export function Banking({ user, groups, onImported }: any) {
     });
   }
   async function importExpense() {
-    const expense = expenseSchema.parse({
-      title: form.title,
-      amountMinor: parseMoney(form.amount),
-      paidBy: form.paidBy,
-      spentOn: form.spentOn,
-      category: form.category,
-      splits:
-        form.splitMode === "Equal"
-          ? equalSplit(parseMoney(form.amount), form.participants)
-          : form.participants.map((memberId: string) => ({
-              memberId,
-              amountMinor: parseMoney(form.exact[memberId] || "0", true),
-            })),
-    });
+    const expense = expenseFromForm(form);
     await api("/bank/transactions/" + review.id + "/import", "POST", {
       groupId: group.id,
       revision: review.revision,
