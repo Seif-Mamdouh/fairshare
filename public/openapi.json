@@ -294,7 +294,7 @@
       "post": {
         "summary": "Hosted Streamable HTTP MCP",
         "operationId": "agentMcp",
-        "description": "Stateless JSON-RPC MCP. Every request requires a Bearer OAuth access token or manual group agent key. Unauthorized responses advertise RFC 9728 discovery. OAuth uses S256 PKCE, dynamic client registration and explicit browser approval for one group. Accept must include application/json and text/event-stream. No persistent transport session. Existing receipt validation, isolation and human approval apply.",
+        "description": "Stateless JSON-RPC MCP. Every request requires a Bearer OAuth access token or manual group agent key. Unauthorized responses advertise RFC 9728 discovery. OAuth uses S256 PKCE, dynamic client registration and explicit browser approval for one group. Accept must include application/json and text/event-stream. No persistent transport session. Existing receipt validation, isolation and human approval apply. The deployed endpoint uses an exact route so platform rewrite captures are not treated as client query parameters; client-supplied query parameters remain rejected.",
         "parameters": [
           {
             "in": "header",
