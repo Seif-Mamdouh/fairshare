@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import request from "supertest";
+import { createServer } from "node:http";
+import { convertRewrites } from "@vercel/routing-utils";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { localDatabase } from "../server/db";
@@ -274,6 +276,59 @@ test("MCP respects the existing shared agent request quota", async () => {
     await s.db.query("UPDATE rate_limits SET hits=120");
     await s.post(key, init).expect(429);
   } finally {
+    await s.db.close();
+  }
+});
+
+test("production Vercel rewrite preserves authenticated MCP handshake", async () => {
+  const s = await setup();
+  const config = JSON.parse(await readFile("vercel.json", "utf8"));
+  const routes = convertRewrites(config.rewrites) as {
+    src: string;
+    dest: string;
+  }[];
+  const server = createServer((req, res) => {
+    const original = new URL(req.url!, "http://localhost");
+    const route = routes.find((r) =>
+      new RegExp(r.src).test(original.pathname),
+    )!;
+    const matches = new RegExp(route.src).exec(original.pathname)!;
+    const destination = new URL(
+      route.dest.replace(/\$(\d+)/g, (_, n) => matches[Number(n)] || ""),
+      original,
+    );
+    // Vercel compiles unused path captures into the destination's query and its
+    // Node helper preserves that query object while Express sees the original URL.
+    const query = Object.fromEntries(original.searchParams);
+    for (const [key, value] of destination.searchParams)
+      if (!(key in query)) query[key] = value;
+    Object.defineProperty(req, "query", { configurable: true, value: query });
+    s.app(req as any, res as any);
+  });
+  try {
+    const http = request(server),
+      key = s.groups[0].agent.key;
+    const post = (body: object, path = "/api/mcp") =>
+      http
+        .post(path)
+        .set(auth(key))
+        .set("Accept", "application/json, text/event-stream")
+        .send(body);
+    const initialized = await post(init);
+    assert.equal(initialized.status, 200, JSON.stringify(initialized.body));
+    assert.equal(initialized.body.result.serverInfo.name, "fairshare-receipts");
+    await post({ jsonrpc: "2.0", method: "notifications/initialized" }).expect(
+      202,
+    );
+    const discovered = await post(rpc("tools/list")).expect(200);
+    assert.equal(discovered.body.result.tools.length, 3);
+    await http.get("/api/mcp").set(auth(key)).expect(405);
+    await http.delete("/api/mcp").set(auth(key)).expect(405);
+    for (const query of ["token=not-a-credential", "path=mcp", "unexpected=1"])
+      await post(init, "/api/mcp?" + query).expect(400);
+    await http.post("/api/mcp").send(init).expect(401);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     await s.db.close();
   }
 });

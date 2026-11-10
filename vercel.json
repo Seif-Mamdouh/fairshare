@@ -22,6 +22,10 @@
       "destination": "/api"
     },
     {
+      "source": "/api/mcp",
+      "destination": "/api"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api"
     },
