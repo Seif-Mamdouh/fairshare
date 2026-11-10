@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Fairshare Agent API",
-    "version": "2.1.0",
-    "description": "Group-scoped receipt submission for any agent provider. Human review required."
+    "version": "2.2.0",
+    "description": "Group-scoped receipt drafts for any agent provider, with expense posting on explicit user instruction."
   },
   "servers": [
     {
@@ -40,7 +40,7 @@
             "tokenUrl": "https://fairshare-five-chi.vercel.app/api/oauth/token",
             "refreshUrl": "https://fairshare-five-chi.vercel.app/api/oauth/token",
             "scopes": {
-              "receipts": "Read group/member context, submit reviewed receipt drafts and read own receipt status"
+              "receipts": "Read group/member context, submit and read own drafts, and finalize selected own drafts as expenses on user instruction"
             }
           }
         }
@@ -138,6 +138,32 @@
           }
         },
         "additionalProperties": false
+      },
+      "FinalizeReceipts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "receiptIds",
+          "userConfirmed"
+        ],
+        "properties": {
+          "receiptIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          "userConfirmed": {
+            "type": "boolean",
+            "const": true,
+            "description": "True only when the user explicitly asks to post the selected drafts in the conversation."
+          }
+        }
       }
     }
   },
@@ -294,7 +320,7 @@
       "post": {
         "summary": "Hosted Streamable HTTP MCP",
         "operationId": "agentMcp",
-        "description": "Stateless JSON-RPC MCP. Every request requires a Bearer OAuth access token or manual group agent key. Unauthorized responses advertise RFC 9728 discovery. OAuth uses S256 PKCE, dynamic client registration and explicit browser approval for one group. Accept must include application/json and text/event-stream. No persistent transport session. Existing receipt validation, isolation and human approval apply. The deployed endpoint uses an exact route so platform rewrite captures are not treated as client query parameters; client-supplied query parameters remain rejected.",
+        "description": "Stateless JSON-RPC MCP. Every request requires a Bearer OAuth access token or manual group agent key. Unauthorized responses advertise RFC 9728 discovery. OAuth uses S256 PKCE, dynamic client registration and explicit browser approval for one group. Accept must include application/json and text/event-stream. No persistent transport session. Existing receipt validation, isolation and human approval apply. The deployed endpoint uses an exact route so platform rewrite captures are not treated as client query parameters; client-supplied query parameters remain rejected. Tools: get_group_context, submit_receipt, get_receipt_status, list_receipt_drafts, finalize_receipts. Finalization posts selected own drafts as expenses on explicit user instruction and safely replays retries.",
         "parameters": [
           {
             "in": "header",
@@ -794,6 +820,120 @@
           },
           "429": {
             "description": "Quota exceeded"
+          }
+        }
+      }
+    },
+    "/receipts/drafts": {
+      "post": {
+        "operationId": "listReceiptDrafts",
+        "summary": "List this agent's pending receipt drafts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "afterId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Up to 100 receipts with id, payload, created_at, has_image, and nextAfterId (null at end)."
+          },
+          "400": {
+            "description": "Invalid cursor"
+          },
+          "401": {
+            "description": "Invalid or revoked key"
+          }
+        }
+      }
+    },
+    "/receipts/finalize": {
+      "post": {
+        "operationId": "finalizeReceipts",
+        "summary": "Post selected own drafts as expenses on explicit user instruction",
+        "description": "The user saying submit it or submit all is sufficient confirmation. Require explicit receipt IDs and userConfirmed=true. Each batch is atomic; validate current currency and members. Already approved receipts replay their existing expense IDs. Rejected receipts cannot be posted. Only this agent\u2019s own receipts in its authorized group are accessible. Expense attribution uses the authorizing group owner; the receipt retains the agent identity, notes and image. The server relies on the agent to interpret user confirmation accurately.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinalizeReceipts"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Posted or replayed receipts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "receipts"
+                  ],
+                  "properties": {
+                    "receipts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "status",
+                          "expenseId",
+                          "replayed"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 150
+                          },
+                          "status": {
+                            "const": "approved"
+                          },
+                          "expenseId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 150
+                          },
+                          "replayed": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing confirmation, invalid IDs, currency, members or split totals"
+          },
+          "401": {
+            "description": "Invalid or revoked key"
+          },
+          "404": {
+            "description": "Receipt not found or belongs to another agent"
+          },
+          "409": {
+            "description": "Rejected receipt cannot be posted"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         }
       }

@@ -92,8 +92,9 @@ export function OAuthSetup({ onManual }: { onManual: () => void }) {
       )}
       <Text style={{ color: C.muted, lineHeight: 23 }}>
         No Fairshare key to copy. Your agent keeps and refreshes its tokens. It
-        can read group member names and submit receipt drafts; you approve every
-        expense. Revoke access from this group’s Agent connections.
+        can read group member names and submit receipt drafts. Tell it “submit
+        it” to save a draft as an expense and update balances. Revoke access
+        from this group’s Agent connections.
       </Text>
       {!!message && (
         <Text accessibilityLiveRegion="polite" style={{ color: C.green }}>

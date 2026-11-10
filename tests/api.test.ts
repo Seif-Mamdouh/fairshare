@@ -298,7 +298,7 @@ test("complete API journey, authorization, receipt concurrency, and MCP", async 
       });
       try {
         await client.connect(transport);
-        assert.equal((await client.listTools()).tools.length, 3);
+        assert.equal((await client.listTools()).tools.length, 5);
         const context: any = await client.callTool({
           name: "get_group_context",
           arguments: {},
@@ -310,6 +310,18 @@ test("complete API journey, authorization, receipt concurrency, and MCP", async 
         });
         assert.equal(result.isError, false);
         assert.equal(JSON.parse(result.content[0].text).status, "pending");
+        const posted: any = await client.callTool({
+          name: "finalize_receipts",
+          arguments: {
+            receiptIds: [JSON.parse(result.content[0].text).id],
+            userConfirmed: true,
+          },
+        });
+        assert.equal(posted.isError, false);
+        assert.equal(
+          JSON.parse(posted.content[0].text).receipts[0].status,
+          "approved",
+        );
       } finally {
         await client.close();
         await new Promise<void>((resolve) => server.close(() => resolve()));

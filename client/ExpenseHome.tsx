@@ -714,7 +714,8 @@ export function ExpenseHome({
                       />
                     </View>
                     <Text style={h.small}>
-                      Drafts change balances only after a person approves them.
+                      Approve drafts here, or tell your agent “submit it” to
+                      save them as expenses.
                     </Text>
                     {!group.receipts.length && (
                       <Text style={{ color: C.muted, marginTop: 24 }}>
@@ -757,8 +758,8 @@ export function ExpenseHome({
                   <View style={h.section}>
                     <Text style={h.sectionTitle}>Agent connections</Text>
                     <Text style={[h.small, { marginBottom: 20 }]}>
-                      Optional assistants can submit receipt drafts for your
-                      review.
+                      Optional assistants can prepare drafts and post them as
+                      expenses when you ask.
                     </Text>
                     {owner && (
                       <Button
