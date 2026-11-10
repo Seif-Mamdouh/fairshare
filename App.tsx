@@ -21,6 +21,7 @@ import { ExpenseHome } from "./client/ExpenseHome";
 import { ExpenseEditor } from "./client/ExpenseEditor";
 import { AgentSetup } from "./client/AgentSetup";
 import { PhoneEntry } from "./client/PhoneEntry";
+import { AccountAccess } from "./client/AccountAccess";
 import {
   appOrigin,
   copyText,
@@ -35,7 +36,7 @@ import {
   agentConnectionLabel,
 } from "./shared/onboarding";
 import * as ImagePicker from "expo-image-picker";
-import { api, openWorkspace } from "./client/api";
+import { api, openWorkspace, saveSession, clearSession } from "./client/api";
 import {
   money,
   parseMoney,
@@ -178,6 +179,45 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+  async function acceptSession(result: any) {
+    await saveSession(result.token);
+    setUser(result.user);
+    setGroups([]);
+    setSummaries([]);
+    setGroup(null);
+    setSelected("");
+    setGroupOpen(false);
+    setComposeGroup("");
+    setModal("");
+    setNewKey("");
+    setForm({});
+    setImage("");
+    setSearch("");
+    setError("");
+    setNotice("");
+    if (Platform.OS === "web") sessionStorage.removeItem("fairshare_bank_link");
+    await loadGroups();
+  }
+  async function signOut() {
+    await run(async () => {
+      await api("/workspace/session", "DELETE");
+      await clearSession();
+      setUser(null);
+      setGroups([]);
+      setSummaries([]);
+      setGroup(null);
+      setSelected("");
+      setModal("");
+      setForm({});
+      setNewKey("");
+      setImage("");
+      setGroupOpen(false);
+      setSearch("");
+      if (Platform.OS === "web")
+        sessionStorage.removeItem("fairshare_bank_link");
+      await initializeWorkspace();
+    });
   }
   async function initializeWorkspace() {
     setBoot(true);
@@ -445,7 +485,7 @@ export default function App() {
             onPress={() => void initializeWorkspace()}
           />
         </View>
-      ) : !user.phone_e164 ? (
+      ) : !user.sign_in_enabled ? (
         <ScrollView
           contentContainerStyle={{
             flexGrow: 1,
@@ -462,12 +502,7 @@ export default function App() {
               gap: 20,
             }}
           >
-            <Text style={s.heading}>Your phone number</Text>
-            <Text style={[s.muted, { lineHeight: 22 }]}>
-              Add your number to continue with Fairshare. It stays private to
-              your workspace.
-            </Text>
-            <PhoneEntry onSaved={setUser} />
+            <AccountAccess user={user} onSession={acceptSession} />
           </Card>
         </ScrollView>
       ) : pendingInvite ? (
@@ -756,13 +791,16 @@ export default function App() {
                     Your name appears in shared groups. Changing it does not
                     merge anyone’s expenses or profiles.
                   </Text>
-                  <PhoneEntry value={user.phone_e164} onSaved={setUser} />
-                  <Text style={[s.muted, { lineHeight: 22 }]}>
-                    This private workspace is remembered on this device.
-                    Clearing browser or app storage, switching devices, or
-                    letting the session expire starts a separate workspace.
-                    There is no automatic recovery or cross-device sign-in.
-                  </Text>
+                  <PhoneEntry
+                    value={user.phone_e164}
+                    requiresPassword
+                    onSaved={setUser}
+                  />
+                  <AccountAccess
+                    user={user}
+                    onSession={acceptSession}
+                    onSignOut={signOut}
+                  />
                 </View>
               )}
               {modal === "Join a group" && (

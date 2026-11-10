@@ -26,7 +26,7 @@ Then open http://localhost:3001. Stop the dev API first; only one process may op
 
 ## What works
 
-- Automatic private device workspaces, HTTP-only browser session cookies, native secure token storage, and group-level authorization. Simple phone-number entry with a unique normalized number per user; no password or SMS verification.
+- Automatic private device workspaces, HTTP-only browser session cookies, native secure token storage, and group-level authorization. Phone number + password sign-in across devices, with no SMS setup.
 - Groups in USD, EUR, GBP, CAD, AUD, or EGP; named members without accounts; revocable invite codes for collaborators.
 - Single-payer expenses, categories, dates, equal or exact splits, searchable history, soft removal of expenses.
 - Integer-cent accounting, per-member balances, simplified repayment suggestions, recorded external payments.
@@ -75,7 +75,7 @@ Tests cover cent rounding, zero-sum balances, invalid splits, authentication, co
 
 ## First-version boundaries
 
-Agents provide extracted structured receipt fields; Fairshare does not call a vision model or perform OCR. Image attachments are limited to 1 MB and stored in PostgreSQL for a simple first version. Larger-scale storage should move to object storage. A group has one currency and one payer per expense; FX, recurring bills, percentages/shares, offline synchronization, payment processing, push notifications, and CSV export are not included. Managed named members and members joining by invitation remain separate; there is no claim/merge flow yet. There is no account recovery or cross-device sign-in. Device sessions are renewed for one year when the workspace opens; clearing storage, changing devices, or session expiration starts a separate empty workspace. Workspace/agent throttles are persisted in PostgreSQL; expired rate-limit rows and sessions should be pruned periodically in a larger deployment.
+Agents provide extracted structured receipt fields; Fairshare does not call a vision model or perform OCR. Image attachments are limited to 1 MB and stored in PostgreSQL for a simple first version. Larger-scale storage should move to object storage. A group has one currency and one payer per expense; FX, recurring bills, percentages/shares, offline synchronization, payment processing, push notifications, and CSV export are not included. Managed named members and members joining by invitation remain separate; there is no claim/merge flow yet. Phone number + password restores the same account across devices. Existing users set a password once from their original device. There is no SMS or forgotten-password reset; device sessions renew for one year. Workspace/agent throttles are persisted in PostgreSQL; expired rate-limit rows and sessions should be pruned periodically in a larger deployment.
 
 The product is an independent implementation. The bounded Splitwise/REA investigation, evidence, and limitations are documented in [docs/REVERSE_ENGINEERING.md](docs/REVERSE_ENGINEERING.md).
 
@@ -85,9 +85,9 @@ References: [Expo web deployment](https://docs.expo.dev/guides/publishing-websit
 
 Groups, Friends, Activity, and Workspace provide a compact list-based interface. Open a group to add expenses, inspect balances and totals, or record external payments. Group settings contains people/invitations and the optional receipt inbox and agent connections. The expense form's paid-by/split control opens Equal/Exact and Whole group/Selected people choices. Expense rows show your net share, and overall totals keep currencies separate. The visual reference and reconstruction limits are documented in `docs/REVERSE_ENGINEERING.md`.
 
-## Private device workspaces
+## Private accounts
 
-Opening the app automatically creates or resumes a private workspace. Existing valid sessions retain their original user ID, groups, and records. A fresh device receives a new empty identity and cannot access other groups without an invitation. Add a phone number when prompted, and set a display name from Workspace at any time. Phone numbers are unique and private, but are not verified and do not recover or unlock another workspace. See [workspace persistence](docs/WORKSPACES.md).
+Opening the app automatically creates or resumes a private workspace. Existing valid sessions retain their original user ID, groups, and records. A fresh device receives a new empty identity and cannot access other groups without an invitation. Set a phone number and password when prompted, then use those credentials to sign in from another device. Existing users must enable their password from the original device once. Phone numbers remain unique and private; a number alone cannot unlock an account. See [workspace persistence](docs/WORKSPACES.md).
 
 ## Private bank transactions
 

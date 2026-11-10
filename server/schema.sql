@@ -29,3 +29,5 @@ CREATE TABLE IF NOT EXISTS bank_accounts (id text PRIMARY KEY, link_id text NOT 
 CREATE TABLE IF NOT EXISTS bank_transactions (id text PRIMARY KEY, link_id text NOT NULL REFERENCES bank_links(id) ON DELETE CASCADE, account_id text NOT NULL REFERENCES bank_accounts(id) ON DELETE CASCADE, provider_transaction_id text NOT NULL, name text NOT NULL, amount_minor bigint NOT NULL, currency text, spent_on text NOT NULL, pending boolean NOT NULL, removed boolean NOT NULL DEFAULT false, revision integer NOT NULL DEFAULT 1, source_key text NOT NULL, UNIQUE(link_id,provider_transaction_id));
 CREATE INDEX IF NOT EXISTS bank_transactions_link_idx ON bank_transactions(link_id,spent_on);
 CREATE TABLE IF NOT EXISTS bank_imports (user_id text NOT NULL REFERENCES users(id), source_key text NOT NULL, expense_id text NOT NULL REFERENCES expenses(id), PRIMARY KEY(user_id,source_key));
+
+CREATE TABLE IF NOT EXISTS user_credentials (user_id text PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, password_hash text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());

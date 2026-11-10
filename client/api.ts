@@ -15,6 +15,11 @@ export async function saveSession(token: string) {
     await SecureStore.setItemAsync("fairshare_session", token);
   }
 }
+export async function clearSession() {
+  accessToken = "";
+  if (Platform.OS !== "web")
+    await SecureStore.deleteItemAsync("fairshare_session");
+}
 let workspaceRequest: Promise<any> | null = null;
 export function openWorkspace() {
   if (workspaceRequest) return workspaceRequest;

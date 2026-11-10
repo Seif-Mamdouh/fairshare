@@ -1071,9 +1071,7 @@ export function ExpenseHome({
                   </View>
                   <View>
                     <Text style={h.groupRowTitle}>{user.name}</Text>
-                    <Text style={h.small}>
-                      Private workspace on this device
-                    </Text>
+                    <Text style={h.small}>Private account</Text>
                   </View>
                 </View>
                 <Text style={h.sectionStrip}>WORKSPACE</Text>
@@ -1107,8 +1105,8 @@ export function ExpenseHome({
                     lineHeight: 21,
                   }}
                 >
-                  Your workspace stays private on this device. A new device or
-                  cleared browser storage starts a separate workspace.
+                  Sign in with your phone number and password to access the same
+                  private account from any device.
                 </Text>
                 <Text style={{ padding: 20, color: C.muted, fontSize: 12 }}>
                   Fairshare · shared expenses for your people

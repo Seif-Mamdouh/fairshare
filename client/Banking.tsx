@@ -174,7 +174,7 @@ export function Banking({ user, groups, onImported }: any) {
           )}
           <Pressable
             accessibilityRole="checkbox"
-            accessibilityLabel="I understand device workspace access"
+            accessibilityLabel="I understand private bank account access"
             accessibilityState={{ checked: consent }}
             onPress={() => setConsent(!consent)}
             style={{
@@ -185,10 +185,8 @@ export function Banking({ user, groups, onImported }: any) {
             }}
           >
             <Text>
-              {consent ? "☑" : "☐"} This bank connection belongs to this private
-              device workspace. I understand that clearing storage or losing
-              this session loses access here. I should disconnect my bank before
-              clearing storage.
+              {consent ? "☑" : "☐"} This bank connection belongs to my private
+              account. Only purchases I explicitly share become group expenses.
             </Text>
           </Pressable>
           <PlaidConnect

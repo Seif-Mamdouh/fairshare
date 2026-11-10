@@ -5,10 +5,12 @@ import { Button, C, Field } from "./components";
 
 type Props = {
   value?: string | null;
+  requiresPassword?: boolean;
   onSaved: (user: { id: string; name: string; phone_e164: string }) => void;
 };
 
-export function PhoneEntry({ value, onSaved }: Props) {
+export function PhoneEntry({ value, requiresPassword, onSaved }: Props) {
+  const [currentPassword, setCurrentPassword] = useState("");
   const [phone, setPhone] = useState(value || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -22,9 +24,13 @@ export function PhoneEntry({ value, onSaved }: Props) {
     setError("");
     setSaved(false);
     try {
-      const user = await api("/me/phone", "POST", { phone });
+      const user = await api("/me/phone", "POST", {
+        phone,
+        ...(requiresPassword ? { currentPassword } : {}),
+      });
       setPhone(user.phone_e164);
       setSaved(true);
+      setCurrentPassword("");
       onSaved(user);
     } catch (e) {
       setError((e as Error).message);
@@ -55,9 +61,21 @@ export function PhoneEntry({ value, onSaved }: Props) {
         US numbers can use 10 digits. For other countries, include + and the
         country code.
       </Text>
+      {requiresPassword && (
+        <Field
+          label="Password to change phone number"
+          value={currentPassword}
+          onChangeText={setCurrentPassword}
+          secureTextEntry
+          autoComplete="current-password"
+          autoCapitalize="none"
+          maxLength={128}
+          editable={!busy}
+        />
+      )}
       <Text style={{ color: C.muted, lineHeight: 21 }}>
-        No verification code is needed. Your number doesn’t let you sign in on
-        another device; keep using this browser or app to access your workspace.
+        Your phone number is your sign-in name. It stays private; no
+        verification text is sent.
       </Text>
       {!!error && (
         <Text accessibilityRole="alert" style={{ color: C.red }}>
