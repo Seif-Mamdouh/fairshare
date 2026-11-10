@@ -763,7 +763,7 @@ export function ExpenseHome({
                     {owner && (
                       <Button
                         label="Set up an agent"
-                        onPress={() => onOpen("Add agent")}
+                        onPress={() => onOpen("Connect an agent")}
                       />
                     )}{" "}
                     {group.agents.map((a: any) => (
@@ -783,10 +783,15 @@ export function ExpenseHome({
                               secondary
                               label="Setup"
                               onPress={() =>
-                                onOpen("Set up agent", {
-                                  agentId: a.id,
-                                  name: a.name,
-                                })
+                                onOpen(
+                                  a.authorization_expires_at
+                                    ? "Connect an agent"
+                                    : "Set up agent",
+                                  {
+                                    agentId: a.id,
+                                    name: a.name,
+                                  },
+                                )
                               }
                             />
                             <Button

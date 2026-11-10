@@ -14,7 +14,11 @@ async function main() {
     .split(";")
     .filter((s) => s.trim()))
     await db.query(sql);
-  const app = createApp(db);
+  const app = createApp(db, {
+    oauthIssuer:
+      process.env.OAUTH_ISSUER_URL ||
+      `http://localhost:${process.env.PORT || 3001}`,
+  });
   app.use(express.static("dist"));
   app.use(express.static("public"));
   app.get("/", (_req, res) =>

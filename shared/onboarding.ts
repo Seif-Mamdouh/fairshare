@@ -22,12 +22,16 @@ export function inviteLink(origin: string, token: string): string {
 export function agentConnectionLabel(agent: {
   revoked_at?: string | null;
   last_used_at?: string | null;
+  authorization_expires_at?: string | null;
 }) {
   return agent.revoked_at
     ? "Access revoked"
-    : agent.last_used_at
-      ? "Connection verified"
-      : "Not connected yet";
+    : agent.authorization_expires_at &&
+        new Date(agent.authorization_expires_at).getTime() <= Date.now()
+      ? "Authorization expired"
+      : agent.last_used_at
+        ? "Connection verified"
+        : "Not connected yet";
 }
 export function mcpConfiguration(origin: string, folder: string, key: string) {
   const root = folder.trim().replace(/\\/g, "/").replace(/\/$/, "");
@@ -143,7 +147,21 @@ export const mcpProviderGuides: Record<
     url: "https://docs.x.ai/developers/tools/remote-mcp",
   },
   "Other MCP": {
-    text: "Use a client supporting Streamable HTTP and an Authorization header. Adapt the template to its configuration format. If it supports only OAuth, use a compatible MCP client or the local adapter; Fairshare does not provide OAuth discovery.",
+    text: "Use a client supporting Streamable HTTP and an Authorization header. Adapt the template to its configuration format. For browser authorization instead, use the key-free OAuth setup from Agent connections.",
     url: "https://modelcontextprotocol.io/docs/2026-07-28/develop/connect-remote-servers",
   },
 };
+
+/** OAuth onboarding never embeds user credentials or an Authorization header. */
+export function oauthMcpConfiguration(origin: string, provider: string) {
+  const url = hostedMcpUrl(origin);
+  if (provider === "Codex")
+    return `codex mcp add fairshare --url ${url}\ncodex mcp login fairshare`;
+  if (provider === "Claude")
+    return `claude mcp add --transport http fairshare ${url}\n# Then open Claude Code and use /mcp to authenticate.`;
+  return JSON.stringify(
+    { mcpServers: { fairshare: { type: "http", url } } },
+    null,
+    2,
+  );
+}

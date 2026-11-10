@@ -5,6 +5,7 @@ import express, {
 } from "express";
 import { installBanking } from "./banking";
 import { installMcp } from "./mcp-http";
+import { installOAuth, oauthIssuer, oauthPublicPaths } from "./oauth";
 import { configuredBanking, type Banking } from "./bank-provider";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -38,7 +39,7 @@ const nameSchema = z.string().trim().min(1).max(80);
 const param = (req: Request, name: string) => String(req.params[name]);
 export function createApp(
   db: Database,
-  options: { banking?: Banking | null } = {},
+  options: { banking?: Banking | null; oauthIssuer?: string } = {},
 ) {
   const app = express();
   app.disable("x-powered-by");
@@ -47,6 +48,16 @@ export function createApp(
   app.use((req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
+    if (oauthPublicPaths.has(req.path)) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type,Authorization",
+      );
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+      if (req.method === "OPTIONS") return res.sendStatus(204);
+      return next();
+    }
     const origin = req.headers.origin;
     const allowed = (process.env.ALLOWED_ORIGINS || "http://localhost:8081")
       .split(",")
@@ -673,7 +684,7 @@ export function createApp(
             "SELECT * FROM expenses WHERE group_id=$1 ORDER BY created_at DESC",
             "SELECT * FROM settlements WHERE group_id=$1 ORDER BY created_at DESC",
             "SELECT id,agent_id,source_id,payload,status,expense_id,created_at,(image_data IS NOT NULL) AS has_image FROM receipts WHERE group_id=$1 ORDER BY created_at DESC",
-            "SELECT id,name,created_at,revoked_at,last_used_at FROM agents WHERE group_id=$1 ORDER BY created_at DESC",
+            "SELECT a.id,a.name,a.created_at,a.revoked_at,a.last_used_at,g.expires_at AS authorization_expires_at FROM agents a LEFT JOIN oauth_grants g ON g.agent_id=a.id WHERE a.group_id=$1 ORDER BY a.created_at DESC",
           ].map((q) => db.query(q, [g.id])),
         );
       const defaults =
@@ -1038,9 +1049,28 @@ export function createApp(
       res.json(await agentReceiptStatus(await agent(req), param(req, "id")));
     }),
   );
+  const oauth = installOAuth(app, {
+    db,
+    issuer: oauthIssuer(options.oauthIssuer),
+    user,
+    credential,
+    limit,
+  });
   installMcp(app, {
     route: asyncRoute,
-    authenticate: agent,
+    challenge: oauth.challenge,
+    authenticate: async (req) => {
+      const value = req.headers.authorization?.replace(/^Bearer /i, "") || "";
+      if (!value.startsWith("foa_")) return agent(req);
+      const a = await oauth.authenticate(value);
+      if (!a) fail(401, "Invalid, expired, or revoked access token");
+      await limit("agent:" + a.id, 120);
+      await db.query(
+        "UPDATE agents SET last_used_at=now() WHERE id=$1 AND revoked_at IS NULL",
+        [a.id],
+      );
+      return a;
+    },
     context: agentContext,
     submit: (a, body) => submitReceipt(a.group_id, body, a.id, null),
     status: agentReceiptStatus,
