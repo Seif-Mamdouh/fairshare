@@ -79,7 +79,12 @@ test("hosted MCP initializes and lists the same bounded tools without transport 
       "get_group_context",
       "get_receipt_status",
       "list_receipt_drafts",
+      "list_receipts",
+      "reject_receipt_draft",
       "submit_receipt",
+      "update_expense",
+      "update_receipt_draft",
+      "void_expense",
     ]);
     assert.equal(
       list.body.result.tools.find((t: any) => t.name === "submit_receipt")
@@ -348,6 +353,471 @@ test("MCP respects the existing shared agent request quota", async () => {
   }
 });
 
+test("MCP edits posted bills in place, splits exact cents, detects conflicts and voids without duplicates", async () => {
+  const s = await setup();
+  try {
+    const { agent, group, detail } = s.groups[0];
+    const call = async (name: string, args: object) => {
+      const response = await s
+        .post(agent.key, rpc("tools/call", { name, arguments: args }))
+        .expect(200);
+      return JSON.parse(response.body.result.content[0].text);
+    };
+    const payer = detail.members[0].id,
+      ids = [payer];
+    for (const name of ["Ali", "Sebastian"])
+      ids.push(
+        (
+          await s.http
+            .post(`/api/groups/${group.id}/members`)
+            .set(auth(s.owner.token))
+            .send({ name })
+            .expect(201)
+        ).body.id,
+      );
+    const draftIds = [];
+    for (const month of ["10", "11"]) {
+      const draft = await call("submit_receipt", {
+        sourceId: `internet-${month}`,
+        title: `Internet ${month}`,
+        amountMinor: 8000,
+        currency: "USD",
+        paidBy: payer,
+        splits: [{ memberId: payer, amountMinor: 8000 }],
+        spentOn: `2026-${month}-01`,
+      });
+      draftIds.push(draft.id);
+    }
+    await call("finalize_receipts", {
+      receiptIds: draftIds,
+      userConfirmed: true,
+    });
+    const before = (await call("list_receipts", { status: "approved" }))
+      .receipts;
+    assert.equal(before.length, 2);
+    for (const r of before) {
+      const args = {
+        expenseId: r.expense.id,
+        expectedRevision: r.expense.revision,
+        userConfirmed: true,
+        changes: {},
+        equalSplitMemberIds: ids,
+      };
+      const updated = await call("update_expense", args);
+      assert.equal(updated.id, r.expense.id);
+      assert.equal(updated.amountMinor, 8000);
+      assert.equal(updated.paidBy, payer);
+      assert.deepEqual(
+        updated.splits.map((x: any) => x.amountMinor).sort(),
+        [2666, 2667, 2667],
+      );
+      assert.deepEqual(
+        updated.splits.map((x: any) => x.memberId),
+        [...ids].sort(),
+      );
+      assert.equal((await call("update_expense", args)).replayed, true);
+      const current = await call("get_receipt_status", { receiptId: r.id });
+      assert.deepEqual(
+        current.expense,
+        Object.fromEntries(
+          Object.entries(updated).filter(([k]) => k !== "replayed"),
+        ),
+      );
+      assert.equal(
+        (
+          await call("update_expense", {
+            ...args,
+            equalSplitMemberIds: undefined,
+            changes: { title: "Stale change" },
+          })
+        ).status,
+        409,
+      );
+    }
+    const view = (
+      await s.http
+        .get(`/api/groups/${group.id}`)
+        .set(auth(s.owner.token))
+        .expect(200)
+    ).body;
+    assert.equal(view.expenses.length, 2);
+    for (const id of ids) {
+      const share = [...ids].sort().indexOf(id) < 2 ? 2667 : 2666;
+      assert.equal(view.balances[id], (id === payer ? 16000 : 0) - share * 2);
+    }
+    const current = (
+      await call("get_receipt_status", { receiptId: before[0].id })
+    ).expense;
+    const base = {
+      expenseId: current.id,
+      expectedRevision: current.revision,
+      userConfirmed: true,
+    };
+    assert.equal(
+      (
+        await call("update_expense", {
+          ...base,
+          changes: { amountMinor: 9000 },
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await call("update_expense", {
+          ...base,
+          changes: {},
+          equalSplitMemberIds: [s.groups[1].detail.members[0].id],
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await call("update_expense", {
+          ...base,
+          changes: { splits: current.splits },
+          equalSplitMemberIds: ids,
+        })
+      ).status,
+      400,
+    );
+    const race = await Promise.all(
+      ["Corrected A", "Corrected B"].map((title) =>
+        call("update_expense", { ...base, changes: { title } }),
+      ),
+    );
+    assert.equal(race.filter((r) => r.status === 409).length, 1);
+    assert.equal(race.filter((r) => r.id === current.id).length, 1);
+    assert.equal((await call("void_expense", base)).status, 409);
+    const fresh = (
+      await call("get_receipt_status", { receiptId: before[0].id })
+    ).expense;
+    const voidArgs = { ...base, expectedRevision: fresh.revision };
+    const voided = await call("void_expense", voidArgs);
+    assert.equal(voided.voided, true);
+    assert.equal((await call("void_expense", voidArgs)).replayed, true);
+    assert.equal(
+      (
+        await call("update_expense", {
+          ...voidArgs,
+          changes: { title: "Restore" },
+        })
+      ).status,
+      409,
+    );
+    // Retrying finalization never creates a replacement for the voided expense.
+    assert.equal(
+      (
+        await call("finalize_receipts", {
+          receiptIds: [before[0].id],
+          userConfirmed: true,
+        })
+      ).receipts[0].expenseId,
+      current.id,
+    );
+    const after = (
+      await s.http
+        .get(`/api/groups/${group.id}`)
+        .set(auth(s.owner.token))
+        .expect(200)
+    ).body;
+    assert.equal(after.expenses.length, 2);
+    assert.equal(after.expenses.filter((e: any) => e.voided_at).length, 1);
+    for (const id of ids)
+      assert.equal(after.balances[id], view.balances[id] / 2);
+  } finally {
+    await s.db.close();
+  }
+});
+
+test("draft corrections preserve source and image, reject duplicates, and keep agent ownership boundaries", async () => {
+  const s = await setup();
+  try {
+    const { agent, group, detail } = s.groups[0];
+    const call = (path: string, body: object, key = agent.key) =>
+      s.http
+        .post("/api/v1/agent" + path)
+        .set(auth(key))
+        .send(body);
+    const payer = detail.members[0].id;
+    const original = {
+      sourceId: "editable",
+      title: "Draft",
+      amountMinor: 8000,
+      currency: "USD",
+      paidBy: payer,
+      splits: [{ memberId: payer, amountMinor: 8000 }],
+      spentOn: "2026-10-01",
+      notes: "Original",
+      imageData: "data:image/png;base64,iVBORw0KGgo=",
+    };
+    const id = (await call("/receipts", original).expect(201)).body.id;
+    const get = async () =>
+      (
+        await s.http
+          .get(`/api/v1/agent/receipts/${id}`)
+          .set(auth(agent.key))
+          .expect(200)
+      ).body;
+    const r = await get(),
+      base = {
+        receiptId: id,
+        expectedRevision: r.revision,
+        userConfirmed: true,
+      };
+    const peer = (
+      await s.http
+        .post(`/api/groups/${group.id}/agents`)
+        .set(auth(s.owner.token))
+        .send({ name: "Another agent" })
+        .expect(201)
+    ).body;
+    for (const key of [peer.key, s.groups[1].agent.key]) {
+      assert.deepEqual(
+        (await call("/receipts/list", {}, key).expect(200)).body.receipts,
+        [],
+      );
+      await call(
+        "/receipts/update",
+        { ...base, changes: { title: "No access" } },
+        key,
+      ).expect(404);
+      await call("/receipts/reject", base, key).expect(404);
+    }
+    await call("/receipts/update", {
+      ...base,
+      userConfirmed: false,
+      changes: { title: "No" },
+    }).expect(400);
+    await call("/receipts/reject", {
+      receiptId: id,
+      expectedRevision: r.revision,
+    }).expect(400);
+    await call("/receipts/update", {
+      ...base,
+      changes: { sourceId: "changed" },
+    }).expect(400);
+    await call("/receipts/update", {
+      ...base,
+      changes: { imageData: "changed" },
+    }).expect(400);
+    const args = {
+      ...base,
+      changes: { title: "Corrected", notes: "Checked", amountMinor: 9000 },
+      equalSplitMemberIds: [payer],
+    };
+    const updated = (await call("/receipts/update", args).expect(200)).body;
+    assert.equal(updated.payload.sourceId, original.sourceId);
+    assert.equal(updated.payload.amountMinor, 9000);
+    assert.equal(updated.payload.splits[0].amountMinor, 9000);
+    assert.equal(updated.has_image, true);
+    assert.equal(
+      (await s.db.query("SELECT image_data FROM receipts WHERE id=$1", [id]))
+        .rows[0].image_data,
+      original.imageData,
+    );
+    assert.equal(
+      (await call("/receipts/update", args).expect(200)).body.replayed,
+      true,
+    );
+    await call("/receipts/update", {
+      ...base,
+      changes: { title: "Stale" },
+    }).expect(409);
+    await call("/receipts/reject", base).expect(409);
+    await call("/receipts", original).expect(409);
+    const posted = (
+      await call("/receipts/finalize", {
+        receiptIds: [id],
+        userConfirmed: true,
+      }).expect(200)
+    ).body.receipts[0];
+    await call("/receipts/update", {
+      ...args,
+      expectedRevision: updated.revision,
+    }).expect(409);
+    await call("/receipts/reject", {
+      ...base,
+      expectedRevision: updated.revision,
+    }).expect(409);
+    const expense = (await get()).expense;
+    assert.equal(expense.amountMinor, 9000);
+    assert.equal(expense.id, posted.expenseId);
+    const expArgs = {
+      expenseId: expense.id,
+      expectedRevision: expense.revision,
+      userConfirmed: true,
+    };
+    for (const key of [peer.key, s.groups[1].agent.key]) {
+      await call(
+        "/expenses/update",
+        { ...expArgs, changes: { title: "No access" } },
+        key,
+      ).expect(404);
+      await call("/expenses/void", expArgs, key).expect(404);
+    }
+    const manual = (
+      await s.http
+        .post(`/api/groups/${group.id}/expenses`)
+        .set(auth(s.owner.token))
+        .send({
+          title: "Manual",
+          amountMinor: 100,
+          paidBy: payer,
+          splits: [{ memberId: payer, amountMinor: 100 }],
+          spentOn: "2026-10-01",
+        })
+        .expect(201)
+    ).body;
+    await call("/expenses/void", { ...expArgs, expenseId: manual.id }).expect(
+      404,
+    );
+    const duplicate = (
+      await call("/receipts", { ...original, sourceId: "editable-v2" }).expect(
+        201,
+      )
+    ).body.id;
+    const dup = (
+      await s.http
+        .get(`/api/v1/agent/receipts/${duplicate}`)
+        .set(auth(agent.key))
+        .expect(200)
+    ).body;
+    const rejection = {
+      receiptId: dup.id,
+      expectedRevision: dup.revision,
+      userConfirmed: true,
+    };
+    assert.equal(
+      (await call("/receipts/reject", rejection).expect(200)).body.status,
+      "rejected",
+    );
+    assert.equal(
+      (await call("/receipts/reject", rejection).expect(200)).body.replayed,
+      true,
+    );
+    await call("/receipts/finalize", {
+      receiptIds: [dup.id],
+      userConfirmed: true,
+    }).expect(409);
+    assert.equal(
+      (await call("/receipts/list", { status: "rejected" }).expect(200)).body
+        .receipts[0].id,
+      dup.id,
+    );
+    await s.http
+      .delete(`/api/groups/${group.id}/agents/${agent.id}`)
+      .set(auth(s.owner.token))
+      .expect(200);
+    await call("/expenses/void", expArgs).expect(401);
+  } finally {
+    await s.db.close();
+  }
+});
+
+test("equal resplitting clears item allocation but preserves conversion, and app voiding invalidates edits", async () => {
+  const s = await setup();
+  try {
+    const { agent, group, detail } = s.groups[0],
+      payer = detail.members[0].id;
+    const call = (path: string, body: object) =>
+      s.http
+        .post("/api/v1/agent" + path)
+        .set(auth(agent.key))
+        .send(body);
+    const draft = (
+      await call("/receipts", {
+        sourceId: "metadata",
+        title: "Dinner",
+        amountMinor: 1000,
+        currency: "USD",
+        paidBy: payer,
+        splits: [{ memberId: payer, amountMinor: 1000 }],
+        spentOn: "2026-11-10",
+      }).expect(201)
+    ).body;
+    const conversion = {
+      currency: "EUR",
+      amountMinor: 900,
+      rate: 1000 / 900,
+      rateDate: "2026-11-10",
+      source: "Manual",
+    };
+    const itemization = {
+      items: [{ label: "Food", amountMinor: 1000, memberIds: [payer] }],
+      taxMinor: 0,
+      tipMinor: 0,
+    };
+    await s.http
+      .post(`/api/groups/${group.id}/receipts/${draft.id}/review`)
+      .set(auth(s.owner.token))
+      .send({
+        action: "approve",
+        expense: {
+          title: "Dinner",
+          amountMinor: 1000,
+          paidBy: payer,
+          splits: [{ memberId: payer, amountMinor: 1000 }],
+          spentOn: "2026-11-10",
+          itemization,
+          conversion,
+        },
+      })
+      .expect(200);
+    const get = async () =>
+      (
+        await s.http
+          .get(`/api/v1/agent/receipts/${draft.id}`)
+          .set(auth(agent.key))
+          .expect(200)
+      ).body.expense;
+    const before = await get();
+    assert.deepEqual(before.itemization, itemization);
+    const changed = (
+      await call("/expenses/update", {
+        expenseId: before.id,
+        expectedRevision: before.revision,
+        userConfirmed: true,
+        changes: {},
+        equalSplitMemberIds: [payer],
+      }).expect(200)
+    ).body;
+    assert.equal(changed.itemization, undefined);
+    assert.deepEqual(changed.conversion, conversion);
+    const base = {
+      expenseId: before.id,
+      expectedRevision: changed.revision,
+      userConfirmed: true,
+    };
+    await call("/expenses/update", {
+      ...base,
+      changes: { amountMinor: 1500 },
+      equalSplitMemberIds: [payer],
+    }).expect(400);
+    const cleared = (
+      await call("/expenses/update", {
+        ...base,
+        changes: { amountMinor: 1500, conversion: null },
+        equalSplitMemberIds: [payer],
+      }).expect(200)
+    ).body;
+    assert.equal(cleared.conversion, undefined);
+    await s.http
+      .delete(`/api/groups/${group.id}/expenses/${before.id}`)
+      .set(auth(s.owner.token))
+      .expect(200);
+    await call("/expenses/update", {
+      ...base,
+      expectedRevision: cleared.revision,
+      changes: { title: "Too late" },
+    }).expect(409);
+    assert.equal((await get()).voided, true);
+  } finally {
+    await s.db.close();
+  }
+});
+
 test("agent posting batches are atomic, scoped, validated and safe against app review retries", async () => {
   const s = await setup();
   try {
@@ -547,7 +1017,7 @@ test("production Vercel rewrite preserves authenticated MCP handshake", async ()
       202,
     );
     const discovered = await post(rpc("tools/list")).expect(200);
-    assert.equal(discovered.body.result.tools.length, 5);
+    assert.equal(discovered.body.result.tools.length, 10);
     await http.get("/api/mcp").set(auth(key)).expect(405);
     await http.delete("/api/mcp").set(auth(key)).expect(405);
     for (const query of ["token=not-a-credential", "path=mcp", "unexpected=1"])

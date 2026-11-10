@@ -30,7 +30,7 @@ Then open http://localhost:3001. Stop the dev API first; only one process may op
 - Groups in USD, EUR, GBP, CAD, AUD, or EGP; named members without accounts; revocable invite codes for collaborators.
 - Single-payer expenses, categories, dates, equal or exact splits, searchable history, soft removal of expenses.
 - Integer-cent accounting, per-member balances, simplified repayment suggestions, recorded external payments.
-- Receipt inbox, optional image attachment, editable review, approval or rejection. Tell an agent “submit it” or “submit all” to post its drafts as expenses and update balances.
+- Receipt inbox, optional image attachment, editable review, approval or rejection. Tell an agent “submit it” or “submit all” to post its drafts as expenses and update balances. Agents can also correct splits in place, edit or reject their drafts, and edit or void their own posted expenses on request.
 - Revocable group-scoped agent credentials, hosted Streamable HTTP MCP, provider-neutral REST API, OpenAPI document, and an optional MCP stdio adapter.
 - Idempotent agent submissions and transactional receipt review, including concurrent requests.
 

@@ -5,6 +5,7 @@ import express, {
 } from "express";
 import { installBanking } from "./banking";
 import { installMcp } from "./mcp-http";
+import { agentReceiptManagement } from "./agent-receipts";
 import { finalizeReceiptsSchema, listDraftsSchema } from "./mcp-tools";
 import { installOAuth, oauthIssuer, oauthPublicPaths } from "./oauth";
 import { configuredBanking, type Banking } from "./bank-provider";
@@ -1021,34 +1022,23 @@ export function createApp(
         "receipts:submit",
         "receipts:read-own",
         "receipts:finalize-own",
+        "receipts:edit-own",
+        "receipts:reject-own",
+        "expenses:edit-own",
+        "expenses:void-own",
       ],
     };
   }
-  async function agentReceiptStatus(a: { id: string }, receiptId: string) {
-    const r = (
-      await db.query(
-        "SELECT id,status,expense_id,created_at,reviewed_at FROM receipts WHERE id=$1 AND agent_id=$2",
-        [receiptId, a.id],
-      )
-    ).rows[0];
-    if (!r) fail(404, "Receipt not found");
-    return r;
-  }
+  const receiptManagement = agentReceiptManagement(db, validateExpense);
+  const agentReceiptStatus = receiptManagement.read;
   async function agentDrafts(
     a: { id: string; group_id: string },
     raw: unknown,
   ) {
-    const data = listDraftsSchema.parse(raw);
-    const rows = (
-      await db.query(
-        "SELECT id,payload,created_at,(image_data IS NOT NULL) AS has_image FROM receipts WHERE agent_id=$1 AND group_id=$2 AND status='pending' AND id>$3 ORDER BY id LIMIT 101",
-        [a.id, a.group_id, data.afterId || ""],
-      )
-    ).rows;
-    return {
-      receipts: rows.slice(0, 100),
-      nextAfterId: rows.length > 100 ? rows[99].id : null,
-    };
+    return receiptManagement.list(a, {
+      ...listDraftsSchema.parse(raw),
+      status: "pending",
+    });
   }
   async function finalizeAgentReceipts(
     a: { id: string; group_id: string },
@@ -1142,6 +1132,20 @@ export function createApp(
       res.json(await finalizeAgentReceipts(await agent(req), req.body));
     }),
   );
+  for (const [path, action] of Object.entries({
+    "/receipts/list": receiptManagement.list,
+    "/receipts/update": receiptManagement.updateDraft,
+    "/receipts/reject": receiptManagement.rejectDraft,
+    "/expenses/update": receiptManagement.updateExpense,
+    "/expenses/void": receiptManagement.voidExpense,
+  })) {
+    app.post(
+      "/api/v1/agent" + path,
+      asyncRoute(async (req, res) => {
+        res.json(await action(await agent(req), req.body));
+      }),
+    );
+  }
   const oauth = installOAuth(app, {
     db,
     issuer: oauthIssuer(options.oauthIssuer),
@@ -1169,6 +1173,7 @@ export function createApp(
     drafts: agentDrafts,
     finalize: finalizeAgentReceipts,
     status: agentReceiptStatus,
+    management: receiptManagement,
   });
   installBanking(app, {
     db,

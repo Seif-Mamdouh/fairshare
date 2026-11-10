@@ -78,7 +78,8 @@ export function AgentSetup({
         This access is for this group only. Your agent can read member names and
         send receipt drafts. Tell it “submit it” to post a draft as an expense,
         or “submit all” to post all of its pending drafts. Posting changes
-        balances.
+        balances. It can also correct its drafts, reject unwanted drafts, and
+        edit or void the expenses it posted when you ask.
       </Text>
       {privateKey ? (
         <View style={styles.box}>

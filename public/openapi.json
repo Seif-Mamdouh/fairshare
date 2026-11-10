@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Fairshare Agent API",
-    "version": "2.2.0",
-    "description": "Group-scoped receipt drafts for any agent provider, with expense posting on explicit user instruction."
+    "version": "2.3.0",
+    "description": "Group-scoped agent receipt drafts and user-directed posting, corrections, rejection and expense voiding."
   },
   "servers": [
     {
@@ -40,7 +40,7 @@
             "tokenUrl": "https://fairshare-five-chi.vercel.app/api/oauth/token",
             "refreshUrl": "https://fairshare-five-chi.vercel.app/api/oauth/token",
             "scopes": {
-              "receipts": "Read group/member context, submit and read own drafts, and finalize selected own drafts as expenses on user instruction"
+              "receipts": "Read group/member context; submit, read, edit, reject and post own drafts; read, edit and void their linked expenses on user instruction"
             }
           }
         }
@@ -164,6 +164,390 @@
             "description": "True only when the user explicitly asks to post the selected drafts in the conversation."
           }
         }
+      },
+      "ExpenseChanges": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "amountMinor": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 100000000
+          },
+          "paidBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "memberId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "amountMinor": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000000
+                }
+              },
+              "required": [
+                "memberId",
+                "amountMinor"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 100
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Food & drink",
+              "Groceries",
+              "Transport",
+              "Stay",
+              "Shopping",
+              "Other"
+            ],
+            "default": "Other"
+          },
+          "spentOn": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "itemization": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 150
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 100000000
+                        },
+                        "memberIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "minItems": 1,
+                          "maxItems": 100
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "amountMinor",
+                        "memberIds"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  },
+                  "taxMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  },
+                  "tipMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  }
+                },
+                "required": [
+                  "items",
+                  "taxMinor",
+                  "tipMinor"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conversion": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "USD",
+                      "EUR",
+                      "GBP",
+                      "CAD",
+                      "AUD",
+                      "EGP"
+                    ]
+                  },
+                  "amountMinor": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100000000
+                  },
+                  "rate": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000
+                  },
+                  "rateDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "Frankfurter",
+                      "Manual"
+                    ]
+                  }
+                },
+                "required": [
+                  "currency",
+                  "amountMinor",
+                  "rate",
+                  "rateDate",
+                  "source"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DraftChanges": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "amountMinor": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 100000000
+          },
+          "paidBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "memberId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "amountMinor": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000000
+                }
+              },
+              "required": [
+                "memberId",
+                "amountMinor"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 100
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Food & drink",
+              "Groceries",
+              "Transport",
+              "Stay",
+              "Shopping",
+              "Other"
+            ],
+            "default": "Other"
+          },
+          "spentOn": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "additionalProperties": false
+      },
+      "ListReceipts": {
+        "type": "object",
+        "properties": {
+          "afterId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateReceiptDraft": {
+        "type": "object",
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "expectedRevision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "userConfirmed": {
+            "type": "boolean",
+            "const": true
+          },
+          "changes": {
+            "$ref": "#/components/schemas/DraftChanges"
+          },
+          "equalSplitMemberIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "receiptId",
+          "expectedRevision",
+          "userConfirmed",
+          "changes"
+        ],
+        "additionalProperties": false
+      },
+      "RejectReceiptDraft": {
+        "type": "object",
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "expectedRevision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "userConfirmed": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "receiptId",
+          "expectedRevision",
+          "userConfirmed"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateExpense": {
+        "type": "object",
+        "properties": {
+          "expenseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "expectedRevision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "userConfirmed": {
+            "type": "boolean",
+            "const": true
+          },
+          "changes": {
+            "$ref": "#/components/schemas/ExpenseChanges"
+          },
+          "equalSplitMemberIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "expenseId",
+          "expectedRevision",
+          "userConfirmed",
+          "changes"
+        ],
+        "additionalProperties": false
+      },
+      "VoidExpense": {
+        "type": "object",
+        "properties": {
+          "expenseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "expectedRevision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "userConfirmed": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "expenseId",
+          "expectedRevision",
+          "userConfirmed"
+        ],
+        "additionalProperties": false
       }
     }
   },
@@ -198,11 +582,11 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "New pending receipt"
-          },
           "200": {
             "description": "Identical replay"
+          },
+          "201": {
+            "description": "New pending receipt"
           },
           "400": {
             "description": "Invalid fields, currency, members, image, or split total"
@@ -222,7 +606,7 @@
     "/receipts/{id}": {
       "get": {
         "operationId": "getReceiptStatus",
-        "summary": "Read this agent\u2019s receipt review status",
+        "summary": "Read this agent’s receipt review status",
         "parameters": [
           {
             "name": "id",
@@ -235,7 +619,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Receipt status and expense ID"
+            "description": "Receipt fields, status, source payload, image presence and revision; when posted, current linked expense fields, id, voided and separate expense revision"
           },
           "404": {
             "description": "Receipt not found or belongs to another agent"
@@ -320,7 +704,7 @@
       "post": {
         "summary": "Hosted Streamable HTTP MCP",
         "operationId": "agentMcp",
-        "description": "Stateless JSON-RPC MCP. Every request requires a Bearer OAuth access token or manual group agent key. Unauthorized responses advertise RFC 9728 discovery. OAuth uses S256 PKCE, dynamic client registration and explicit browser approval for one group. Accept must include application/json and text/event-stream. No persistent transport session. Existing receipt validation, isolation and human approval apply. The deployed endpoint uses an exact route so platform rewrite captures are not treated as client query parameters; client-supplied query parameters remain rejected. Tools: get_group_context, submit_receipt, get_receipt_status, list_receipt_drafts, finalize_receipts. Finalization posts selected own drafts as expenses on explicit user instruction and safely replays retries.",
+        "description": "Stateless JSON-RPC MCP. Every request requires a Bearer OAuth access token or manual group agent key. Unauthorized responses advertise RFC 9728 discovery. OAuth uses S256 PKCE, dynamic client registration and explicit browser approval for one group. Accept must include application/json and text/event-stream. No persistent transport session. Existing receipt validation, isolation and human approval apply. The deployed endpoint uses an exact route so platform rewrite captures are not treated as client query parameters; client-supplied query parameters remain rejected. Tools: get_group_context, submit_receipt, get_receipt_status, list_receipt_drafts, finalize_receipts. Finalization posts selected own drafts as expenses on explicit user instruction and safely replays retries. Management tools: list_receipts, update_receipt_draft, reject_receipt_draft, update_expense, void_expense. Reads return opaque revisions for conflict-safe changes to own records.",
         "parameters": [
           {
             "in": "header",
@@ -439,9 +823,6 @@
       "get": {
         "summary": "No standalone event stream",
         "responses": {
-          "405": {
-            "description": "Stateless transport accepts POST only"
-          },
           "401": {
             "description": "Missing, invalid, expired or revoked credential",
             "headers": {
@@ -452,6 +833,9 @@
                 "description": "Bearer challenge with resource_metadata and receipts scope"
               }
             }
+          },
+          "405": {
+            "description": "Stateless transport accepts POST only"
           }
         },
         "security": [
@@ -468,9 +852,6 @@
       "delete": {
         "summary": "No persistent MCP transport session",
         "responses": {
-          "405": {
-            "description": "There is no transport session to terminate; revoke the agent key through group settings instead"
-          },
           "401": {
             "description": "Missing, invalid, expired or revoked credential",
             "headers": {
@@ -481,6 +862,9 @@
                 "description": "Bearer challenge with resource_metadata and receipts scope"
               }
             }
+          },
+          "405": {
+            "description": "There is no transport session to terminate; revoke the agent key through group settings instead"
           }
         },
         "security": [
@@ -848,7 +1232,7 @@
         },
         "responses": {
           "200": {
-            "description": "Up to 100 receipts with id, payload, created_at, has_image, and nextAfterId (null at end)."
+            "description": "Up to 100 pending receipts with payload, revision, status, image presence and nextAfterId (null at end)"
           },
           "400": {
             "description": "Invalid cursor"
@@ -863,7 +1247,7 @@
       "post": {
         "operationId": "finalizeReceipts",
         "summary": "Post selected own drafts as expenses on explicit user instruction",
-        "description": "The user saying submit it or submit all is sufficient confirmation. Require explicit receipt IDs and userConfirmed=true. Each batch is atomic; validate current currency and members. Already approved receipts replay their existing expense IDs. Rejected receipts cannot be posted. Only this agent\u2019s own receipts in its authorized group are accessible. Expense attribution uses the authorizing group owner; the receipt retains the agent identity, notes and image. The server relies on the agent to interpret user confirmation accurately.",
+        "description": "The user saying submit it or submit all is sufficient confirmation. Require explicit receipt IDs and userConfirmed=true. Each batch is atomic; validate current currency and members. Already approved receipts replay their existing expense IDs. Rejected receipts cannot be posted. Only this agent’s own receipts in its authorized group are accessible. Expense attribution uses the authorizing group owner; the receipt retains the agent identity, notes and image. The server relies on the agent to interpret user confirmation accurately.",
         "requestBody": {
           "required": true,
           "content": {
@@ -931,6 +1315,191 @@
           },
           "409": {
             "description": "Rejected receipt cannot be posted"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/receipts/list": {
+      "post": {
+        "operationId": "listReceipts",
+        "summary": "List own receipts and current linked expenses, including posted or rejected records",
+        "description": "Optional status and afterId. Up to 100 records; nextAfterId is null at the end. Each receipt has its payload, status, has_image, revision and linked expense when posted. Expense includes current editable fields, id, voided and a separate revision. No other agents’ or manually created expenses are exposed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListReceipts"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Receipts with nextAfterId cursor"
+          },
+          "400": {
+            "description": "Invalid fields, missing confirmation or invalid split"
+          },
+          "401": {
+            "description": "Invalid, expired or revoked credential"
+          },
+          "404": {
+            "description": "Not found or outside the agent scope"
+          },
+          "409": {
+            "description": "Stale revision or incompatible lifecycle state"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/receipts/update": {
+      "post": {
+        "operationId": "updateReceiptDraft",
+        "summary": "Correct a pending receipt draft in place",
+        "description": "Patch only supplied fields. Source ID, image and receipt ID are preserved. equalSplitMemberIds replaces splits with exact equal shares; remainder cents go in sorted member-ID order. Do not also send changes.splits. Changes must be nonempty unless equalSplitMemberIds is set. Does not post the draft. Requires userConfirmed=true from explicit user instruction and expectedRevision from the latest read. The server relies on the agent to interpret conversational consent. Row locks and content revisions prevent overwriting changed state; identical outcomes return replayed=true. On 409 reread and review before retrying.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReceiptDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated receipt or expense with revision and replayed boolean"
+          },
+          "400": {
+            "description": "Invalid fields, missing confirmation or invalid split"
+          },
+          "401": {
+            "description": "Invalid, expired or revoked credential"
+          },
+          "404": {
+            "description": "Not found or outside the agent scope"
+          },
+          "409": {
+            "description": "Stale revision or incompatible lifecycle state"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/receipts/reject": {
+      "post": {
+        "operationId": "rejectReceiptDraft",
+        "summary": "Reject a pending draft on user instruction",
+        "description": "Retains the receipt and image but creates no expense. Already rejected receipts safely replay. Approved receipts require void_expense instead. Requires userConfirmed=true from explicit user instruction and expectedRevision from the latest read. The server relies on the agent to interpret conversational consent. Row locks and content revisions prevent overwriting changed state; identical outcomes return replayed=true. On 409 reread and review before retrying.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectReceiptDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated receipt or expense with revision and replayed boolean"
+          },
+          "400": {
+            "description": "Invalid fields, missing confirmation or invalid split"
+          },
+          "401": {
+            "description": "Invalid, expired or revoked credential"
+          },
+          "404": {
+            "description": "Not found or outside the agent scope"
+          },
+          "409": {
+            "description": "Stale revision or incompatible lifecycle state"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/expenses/update": {
+      "post": {
+        "operationId": "updateExpense",
+        "summary": "Edit an expense posted by this agent without creating another expense",
+        "description": "Obtain the expense ID and expense revision from list_receipts or get_receipt_status. Patches only supplied fields; group, expense ID and provenance stay unchanged. Revalidates amount, date, payer, member IDs, splits and metadata. equalSplitMemberIds computes exact shares in sorted member-ID order and clears itemization; do not also send changes.splits. Set itemization or conversion to null to clear them. Updates group balances immediately. Voided expenses cannot be edited. Requires userConfirmed=true from explicit user instruction and expectedRevision from the latest read. The server relies on the agent to interpret conversational consent. Row locks and content revisions prevent overwriting changed state; identical outcomes return replayed=true. On 409 reread and review before retrying.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExpense"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated receipt or expense with revision and replayed boolean"
+          },
+          "400": {
+            "description": "Invalid fields, missing confirmation or invalid split"
+          },
+          "401": {
+            "description": "Invalid, expired or revoked credential"
+          },
+          "404": {
+            "description": "Not found or outside the agent scope"
+          },
+          "409": {
+            "description": "Stale revision or incompatible lifecycle state"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/expenses/void": {
+      "post": {
+        "operationId": "voidExpense",
+        "summary": "Remove an own posted expense from balances",
+        "description": "Soft-deletes the expense; retains its receipt, ID and history. Already voided expenses safely replay. Cannot restore an expense or modify manual expenses/other agents’ expenses. Use update_expense for corrections. Requires userConfirmed=true from explicit user instruction and expectedRevision from the latest read. The server relies on the agent to interpret conversational consent. Row locks and content revisions prevent overwriting changed state; identical outcomes return replayed=true. On 409 reread and review before retrying.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidExpense"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated receipt or expense with revision and replayed boolean"
+          },
+          "400": {
+            "description": "Invalid fields, missing confirmation or invalid split"
+          },
+          "401": {
+            "description": "Invalid, expired or revoked credential"
+          },
+          "404": {
+            "description": "Not found or outside the agent scope"
+          },
+          "409": {
+            "description": "Stale revision or incompatible lifecycle state"
           },
           "429": {
             "description": "Rate limit exceeded"
