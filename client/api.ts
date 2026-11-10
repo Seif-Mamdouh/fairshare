@@ -61,6 +61,7 @@ export async function api(path: string, method = "GET", body?: unknown) {
   const data = await response
     .json()
     .catch(() => ({ error: "The server returned an unexpected response" }));
-  if (!response.ok) throw new Error(data.error || "Request failed");
+  if (!response.ok)
+    throw new Error(data.error_description || data.error || "Request failed");
   return data;
 }

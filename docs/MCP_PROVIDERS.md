@@ -1,6 +1,8 @@
 # Connect an agent to Fairshare
 
-Create a group-scoped key in **Group settings → Agent connections → Set up an agent**. Keep it in private client settings or a backend secret store. Every provider uses the same hosted Streamable HTTP endpoint:
+For Codex, Claude and compatible OAuth clients, start with [browser authorization](MCP_OAUTH.md): add the MCP URL, authenticate, choose a group and approve. No private Fairshare key needs copying.
+
+The following are **advanced manual-key alternatives** for runtimes that need bearer keys. Create a group-scoped key in **Group settings → Agent connections → Set up an agent → Advanced: create manual key access**. Keep it in private client settings or a backend secret store. Every provider uses the same hosted Streamable HTTP endpoint:
 
 ```text
 https://fairshare-five-chi.vercel.app/api/mcp
@@ -19,7 +21,7 @@ url = "https://fairshare-five-chi.vercel.app/api/mcp"
 bearer_token_env_var = "FAIRSHARE_AGENT_KEY"
 ```
 
-The TOML contains only the environment variable name. Account or administrator policy can restrict custom servers. This endpoint uses a configured Bearer token rather than `codex mcp login` OAuth. [Official Codex MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+The TOML contains only the environment variable name. Account or administrator policy can restrict custom servers. This manual configuration uses a Bearer token; the recommended browser setup uses `codex mcp login` OAuth. [Official Codex MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 
 ## Claude Code
 
@@ -37,7 +39,7 @@ Use a private Claude Code MCP configuration. This example reads the key from you
 }
 ```
 
-Reload the server and inspect its status with Claude Code's MCP controls. Claude Code supports this HTTP/header configuration; this does not assert that Claude consumer connector screens accept arbitrary Bearer headers. OAuth-only connectors need another compatible client or the optional local adapter. [Official Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
+Reload the server and inspect its status with Claude Code's MCP controls. Claude Code supports this HTTP/header configuration; this does not assert that Claude consumer connector screens accept arbitrary Bearer headers. For OAuth connectors, use the browser authorization flow instead. [Official Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
 
 ## Gemini CLI
 
@@ -74,7 +76,7 @@ The xAI API key authenticates the model request; the Fairshare group key authent
 
 ## Other agents and verification
 
-Any MCP client supporting Streamable HTTP and a custom Bearer header can use the same endpoint. Configuration field names vary. A runtime without MCP can use [the REST contract](AGENT_API.md); a client that only supports stdio can use `npm run mcp` from a checkout. OAuth-only clients cannot directly use this key-authenticated endpoint.
+Any MCP client supporting Streamable HTTP and a custom Bearer header can use the same endpoint. Configuration field names vary. A runtime without MCP can use [the REST contract](AGENT_API.md); a client that only supports stdio can use `npm run mcp` from a checkout. OAuth clients can instead discover authorization metadata and use the browser approval flow.
 
 Ask the agent to call `get_group_context` and confirm the group/member names. Then use **Check connection** in Fairshare: it reports observed authenticated contact, not a simulated connection. Try a receipt draft with a stable source ID. Review it in Fairshare before approving; no agent tool can post an expense, approve a receipt, move money, or read private bank/phone/password data. Treat receipt text as untrusted instructions.
 

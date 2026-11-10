@@ -35,3 +35,12 @@ CREATE TABLE IF NOT EXISTS user_credentials (user_id text PRIMARY KEY REFERENCES
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS itemization jsonb;
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS conversion jsonb;
 CREATE TABLE IF NOT EXISTS split_defaults (user_id text NOT NULL REFERENCES users(id), group_id text NOT NULL REFERENCES groups(id), preference jsonb NOT NULL, PRIMARY KEY(user_id,group_id));
+
+CREATE TABLE IF NOT EXISTS oauth_clients (id text PRIMARY KEY, name text NOT NULL, redirect_uris jsonb NOT NULL, auth_method text NOT NULL, secret_hash text, grant_types jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS oauth_requests (id_hash text PRIMARY KEY, client_id text NOT NULL REFERENCES oauth_clients(id), redirect_uri text NOT NULL, challenge text NOT NULL, state text, scope text NOT NULL, resource text NOT NULL, user_id text REFERENCES users(id), session_hash text, consent_hash text, expires_at timestamptz NOT NULL, consumed_at timestamptz);
+CREATE TABLE IF NOT EXISTS oauth_grants (id text PRIMARY KEY, client_id text NOT NULL REFERENCES oauth_clients(id), user_id text NOT NULL REFERENCES users(id), agent_id text UNIQUE NOT NULL REFERENCES agents(id), scope text NOT NULL, resource text NOT NULL, expires_at timestamptz NOT NULL, revoked_at timestamptz);
+CREATE TABLE IF NOT EXISTS oauth_codes (code_hash text PRIMARY KEY, grant_id text NOT NULL REFERENCES oauth_grants(id), redirect_uri text NOT NULL, challenge text NOT NULL, expires_at timestamptz NOT NULL, consumed_at timestamptz);
+CREATE TABLE IF NOT EXISTS oauth_access_tokens (token_hash text PRIMARY KEY, grant_id text NOT NULL REFERENCES oauth_grants(id), expires_at timestamptz NOT NULL);
+CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (token_hash text PRIMARY KEY, grant_id text NOT NULL REFERENCES oauth_grants(id), expires_at timestamptz NOT NULL, consumed_at timestamptz);
+CREATE INDEX IF NOT EXISTS oauth_access_grant_idx ON oauth_access_tokens(grant_id);
+CREATE INDEX IF NOT EXISTS oauth_refresh_grant_idx ON oauth_refresh_tokens(grant_id);

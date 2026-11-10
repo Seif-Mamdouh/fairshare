@@ -24,6 +24,8 @@ import { ExpenseEditor } from "./client/ExpenseEditor";
 import { AgentSetup } from "./client/AgentSetup";
 import { PhoneEntry } from "./client/PhoneEntry";
 import { AccountAccess } from "./client/AccountAccess";
+import { OAuthConsent } from "./client/OAuthConsent";
+import { OAuthSetup } from "./client/OAuthSetup";
 import {
   appOrigin,
   copyText,
@@ -78,6 +80,11 @@ export default function App() {
   const [pendingInvite, setPendingInvite] = useState<string | null>(null),
     [invitation, setInvitation] = useState<any>(null),
     [inviteError, setInviteError] = useState("");
+  const readOAuthRequest = () =>
+    Platform.OS === "web"
+      ? new URLSearchParams(window.location.hash.slice(1)).get("oauth") || ""
+      : "";
+  const [oauthRequest, setOAuthRequest] = useState(readOAuthRequest);
   const inviteRequest = useRef(0);
   async function showInvite(token: string) {
     const request = ++inviteRequest.current;
@@ -250,7 +257,10 @@ export default function App() {
       if (token) void showInvite(token);
     };
     const sub = Linking.addEventListener("url", (event) => receive(event.url));
-    const hashChange = () => receive(window.location.href);
+    const hashChange = () => {
+      receive(window.location.href);
+      setOAuthRequest(readOAuthRequest());
+    };
     if (Platform.OS === "web")
       window.addEventListener("hashchange", hashChange);
     return () => {
@@ -493,9 +503,22 @@ export default function App() {
               gap: 20,
             }}
           >
+            {oauthRequest && (
+              <Text style={s.muted}>
+                Sign in to continue connecting your agent. You’ll choose a group
+                and approve access next.
+              </Text>
+            )}
             <AccountAccess user={user} onSession={acceptSession} />
           </Card>
         </ScrollView>
+      ) : oauthRequest ? (
+        <OAuthConsent
+          key={oauthRequest + user.id}
+          requestId={oauthRequest}
+          user={user}
+          onSignOut={signOut}
+        />
       ) : pendingInvite ? (
         <ScrollView
           contentContainerStyle={{
@@ -674,6 +697,9 @@ export default function App() {
               contentContainerStyle={{ padding: 20, flexGrow: 1 }}
               keyboardShouldPersistTaps="handled"
             >
+              {modal === "Connect an agent" && (
+                <OAuthSetup onManual={() => open("Add agent")} />
+              )}
               {["New group", "Add person", "Add agent"].includes(modal) &&
                 !form.agentId && (
                   <>
@@ -1056,8 +1082,8 @@ export default function App() {
               )}
               {modal === "Revoke agent" && (
                 <Text style={[s.muted, { lineHeight: 24 }]}>
-                  Revoke {form.name}’s key? It will no longer be able to submit
-                  receipts. Existing receipts will stay in your inbox.
+                  Revoke {form.name}’s access? It will no longer be able to
+                  submit receipts. Existing receipts will stay in your inbox.
                 </Text>
               )}
               {error && (
@@ -1075,7 +1101,8 @@ export default function App() {
                 !form.agentId &&
                 modal !== "Invitation link" &&
                 modal !== "Banks" &&
-                modal !== "Search expenses" && (
+                modal !== "Search expenses" &&
+                modal !== "Connect an agent" && (
                   <View style={{ marginTop: 24, gap: 12 }}>
                     <Button
                       disabled={busy}

@@ -55,13 +55,13 @@ In **Add expense**, choose **Whole group** or **Selected people**, then **Equal*
 
 ## Connect Claude, Grok, or another agent
 
-Open a group → **Group settings → Agent connections → Set up an agent**. Create private access, choose MCP or HTTP setup, and follow the guide. Copy the key while it is shown. The app shows **Not connected yet** until an authenticated agent request reaches the server; **Check connection** reads that observed status. Give your agent the REST contract in [docs/AGENT_API.md](docs/AGENT_API.md), or run the MCP adapter with a compatible client. Provider-hosted chat products vary in whether they allow arbitrary tools; the REST API works with any agent runtime that can make HTTPS requests. No provider account or API key is required by Fairshare itself.
+Open a group → **Group settings → Agent connections → Set up an agent**. Add the MCP URL to Codex, Claude or another compatible client and start authentication. Fairshare opens in your browser to sign in, choose a group and authorize; the client handles tokens automatically. See [browser authorization](docs/MCP_OAUTH.md). Advanced manual-key MCP/HTTP setup remains available. The app shows **Not connected yet** until an authenticated agent request reaches the server; **Check connection** reads that observed status. Give your agent the REST contract in [docs/AGENT_API.md](docs/AGENT_API.md), or run the MCP adapter with a compatible client. Provider-hosted chat products vary in whether they allow arbitrary tools; the REST API works with any agent runtime that can make HTTPS requests. No provider account or API key is required by Fairshare itself.
 
 ```sh
 FAIRSHARE_URL=https://your-app.vercel.app FAIRSHARE_AGENT_KEY=your-private-key npm run mcp
 ```
 
-Do not put secrets in a shell history. Prefer client secret configuration or environment injection for real keys. The command above illustrates variable names only. MCP has `get_group_context`, `submit_receipt`, and `get_receipt_status`. The command starts the optional local stdio bridge. For direct remote connections, use the hosted `https://fairshare-five-chi.vercel.app/api/mcp` endpoint with a group agent Bearer key; [provider-specific setup](docs/MCP_PROVIDERS.md) covers Codex, Claude Code, Gemini CLI and Grok API.
+Do not put secrets in a shell history. Prefer client secret configuration or environment injection for real keys. The command above illustrates variable names only. MCP has `get_group_context`, `submit_receipt`, and `get_receipt_status`. The command starts the optional local stdio bridge. For direct remote connections, use the hosted `https://fairshare-five-chi.vercel.app/api/mcp` endpoint with OAuth or a group agent Bearer key; [provider-specific setup](docs/MCP_PROVIDERS.md) covers Codex, Claude Code, Gemini CLI and Grok API.
 
 ## Verify
 

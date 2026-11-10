@@ -196,7 +196,7 @@ export function AgentSetup({
           </Text>
           <Text style={styles.body}>
             Your client must support local MCP servers. This is manual setup,
-            not a Claude or Grok account sign-in.
+            for clients that require a local process.
           </Text>
           <Text style={styles.body}>
             Download the Fairshare source, install Node.js 22 or newer, and run
