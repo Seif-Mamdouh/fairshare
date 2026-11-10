@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-Open the Expo web URL (usually http://localhost:8081). The API runs on http://localhost:3001. Without `DATABASE_URL`, a local PostgreSQL-compatible PGlite database is created under ignored `work/database/`. No account or cloud services are needed for local development. The app opens an empty private workspace automatically.
+Open the Expo web URL (usually http://localhost:8081). The API runs on http://localhost:3001. Without `DATABASE_URL`, a local PostgreSQL-compatible PGlite database is created under ignored `work/database/`. No account or cloud services are needed for local development. The app opens an empty private workspace automatically and asks for a phone number before continuing.
 
 To preview the production web export instead:
 
@@ -26,7 +26,7 @@ Then open http://localhost:3001. Stop the dev API first; only one process may op
 
 ## What works
 
-- Automatic private device workspaces, HTTP-only browser session cookies, native secure token storage, and group-level authorization. No sign-in or registration screen.
+- Automatic private device workspaces, HTTP-only browser session cookies, native secure token storage, and group-level authorization. Simple phone-number entry with a unique normalized number per user; no password or SMS verification.
 - Groups in USD, EUR, GBP, CAD, AUD, or EGP; named members without accounts; revocable invite codes for collaborators.
 - Single-payer expenses, categories, dates, equal or exact splits, searchable history, soft removal of expenses.
 - Integer-cent accounting, per-member balances, simplified repayment suggestions, recorded external payments.
@@ -87,8 +87,9 @@ Groups, Friends, Activity, and Workspace provide a compact list-based interface.
 
 ## Private device workspaces
 
-Opening the app automatically creates or resumes a private workspace. Existing valid sessions retain their original user ID, groups, and records. A fresh device receives a new empty identity and cannot access other groups without an invitation. Set a display name from Workspace at any time; it is not a registration step. See [workspace persistence](docs/WORKSPACES.md).
+Opening the app automatically creates or resumes a private workspace. Existing valid sessions retain their original user ID, groups, and records. A fresh device receives a new empty identity and cannot access other groups without an invitation. Add a phone number when prompted, and set a display name from Workspace at any time. Phone numbers are unique and private, but are not verified and do not recover or unlock another workspace. See [workspace persistence](docs/WORKSPACES.md).
 
 ## Private bank transactions
 
 Connect a US bank through Plaid, privately review transactions, and explicitly share selected purchases as expenses. Sandbox uses fake bank data. See [banking setup, privacy, APIs and native build requirements](docs/BANKING.md).
+
