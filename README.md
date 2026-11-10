@@ -75,7 +75,7 @@ Tests cover cent rounding, zero-sum balances, invalid splits, authentication, co
 
 ## First-version boundaries
 
-Agents provide extracted structured receipt fields; Fairshare does not call a vision model or perform OCR. Image attachments are limited to 1 MB and stored in PostgreSQL for a simple first version. Larger-scale storage should move to object storage. A group has one currency and one payer per expense; FX, recurring bills, percentages/shares, offline synchronization, payment processing, push notifications, and CSV export are not included. Managed named members and members joining by invitation remain separate; there is no claim/merge flow yet. Phone number + password restores the same account across devices. Existing users set a password once from their original device. There is no SMS or forgotten-password reset; device sessions renew for one year. Workspace/agent throttles are persisted in PostgreSQL; expired rate-limit rows and sessions should be pruned periodically in a larger deployment.
+Agents provide structured receipt fields; the web Add expense flow also offers local Tesseract receipt OCR with mandatory human review. Image attachments are limited to 1 MB and stored in PostgreSQL for a simple first version. Larger-scale storage should move to object storage. A group has one currency and one payer per expense; Recurring bills, offline synchronization, payment processing, push notifications, and CSV export are not included. Currency conversion stores a fixed reviewed reference or manual rate. Managed named members and members joining by invitation remain separate; there is no claim/merge flow yet. Phone number + password restores the same account across devices. Existing users set a password once from their original device. There is no SMS or forgotten-password reset; device sessions renew for one year. Workspace/agent throttles are persisted in PostgreSQL; expired rate-limit rows and sessions should be pruned periodically in a larger deployment.
 
 The product is an independent implementation. The bounded Splitwise/REA investigation, evidence, and limitations are documented in [docs/REVERSE_ENGINEERING.md](docs/REVERSE_ENGINEERING.md).
 
@@ -92,3 +92,7 @@ Opening the app automatically creates or resumes a private workspace. Existing v
 ## Private bank transactions
 
 Connect a US bank through Plaid, privately review transactions, and explicitly share selected purchases as expenses. Sandbox uses fake bank data. See [banking setup, privacy, APIs and native build requirements](docs/BANKING.md).
+
+## Free expense tools
+
+No expense-count paywall or subscription is required. Add expense includes receipt OCR, itemized splits, currency conversion and saved split defaults. Groups include spending charts and expense search; Workspace searches across groups. See [expense tools and boundaries](docs/EXPENSE_TOOLS.md).

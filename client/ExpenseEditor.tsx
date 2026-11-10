@@ -9,7 +9,14 @@ import {
   Image,
 } from "react-native";
 import { C, icon, Button, Field, Pills } from "./components";
-import { equalSplit, parseMoney, money, categories } from "../shared/domain";
+import {
+  weightedSplit,
+  equalSplit,
+  parseMoney,
+  money,
+  categories,
+} from "../shared/domain";
+import { ExpenseTools } from "./ExpenseTools";
 export function ExpenseEditor({
   form,
   setForm,
@@ -20,6 +27,7 @@ export function ExpenseEditor({
   receipt = false,
   review = false,
   lockedAmount = false,
+  onDefaultsChanged,
 }: any) {
   const [page, setPage] = useState("main");
   const set = (key: string, value: any) =>
@@ -33,10 +41,18 @@ export function ExpenseEditor({
   let shares: Record<string, number> = {};
   try {
     shares = Object.fromEntries(
-      equalSplit(parseMoney(form.amount), form.participants).map((p) => [
-        p.memberId,
-        p.amountMinor,
-      ]),
+      (form.splitMode === "Saved proportions"
+        ? weightedSplit(
+            parseMoney(form.amount),
+            form.participants.map((memberId: string) => ({
+              memberId,
+              weight:
+                form.defaultWeights?.find((w: any) => w.memberId === memberId)
+                  ?.weight || 1,
+            })),
+          )
+        : equalSplit(parseMoney(form.amount), form.participants)
+      ).map((p) => [p.memberId, p.amountMinor]),
     );
   } catch {}
   if (page === "split")
@@ -59,7 +75,11 @@ export function ExpenseEditor({
         />
         <Text style={s.label}>Split options</Text>
         <Pills
-          items={["Equal", "Exact"]}
+          items={
+            form.defaultWeights
+              ? ["Equal", "Exact", "Saved proportions"]
+              : ["Equal", "Exact"]
+          }
           value={form.splitMode}
           onChange={(v: string) => set("splitMode", v)}
         />
@@ -234,7 +254,14 @@ export function ExpenseEditor({
             placeholder="0.00"
             placeholderTextColor="#969A9B"
             value={form.amount}
-            onChangeText={(v) => set("amount", v)}
+            onChangeText={(v) =>
+              setForm((f: any) => ({
+                ...f,
+                amount: v,
+                conversion: undefined,
+                itemization: undefined,
+              }))
+            }
             keyboardType="decimal-pad"
             style={s.amount}
           />
@@ -248,7 +275,11 @@ export function ExpenseEditor({
           <Text style={{ fontSize: 16, color: C.ink, textAlign: "center" }}>
             Paid by <Text style={{ fontWeight: "600" }}>{payer}</Text> and split{" "}
             <Text style={{ fontWeight: "600" }}>
-              {form.splitMode === "Equal" ? "equally" : "by exact amounts"}
+              {form.splitMode === "Equal"
+                ? "equally"
+                : form.splitMode === "Saved proportions"
+                  ? "by saved proportions"
+                  : "by exact amounts"}
             </Text>
           </Text>
         </Pressable>
@@ -270,7 +301,16 @@ export function ExpenseEditor({
           }}
         />
       )}
-      <View style={{ flex: 1, minHeight: 70 }} />
+      {!receipt && (
+        <ExpenseTools
+          form={form}
+          setForm={setForm}
+          group={group}
+          lockedAmount={lockedAmount}
+          onDefaultsChanged={onDefaultsChanged}
+        />
+      )}
+      <View style={{ flex: 1, minHeight: 30 }} />
       <View style={s.bottom}>
         <Pressable
           accessibilityRole="button"

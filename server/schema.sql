@@ -31,3 +31,7 @@ CREATE INDEX IF NOT EXISTS bank_transactions_link_idx ON bank_transactions(link_
 CREATE TABLE IF NOT EXISTS bank_imports (user_id text NOT NULL REFERENCES users(id), source_key text NOT NULL, expense_id text NOT NULL REFERENCES expenses(id), PRIMARY KEY(user_id,source_key));
 
 CREATE TABLE IF NOT EXISTS user_credentials (user_id text PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, password_hash text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
+
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS itemization jsonb;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS conversion jsonb;
+CREATE TABLE IF NOT EXISTS split_defaults (user_id text NOT NULL REFERENCES users(id), group_id text NOT NULL REFERENCES groups(id), preference jsonb NOT NULL, PRIMARY KEY(user_id,group_id));

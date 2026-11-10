@@ -154,7 +154,7 @@ export function createApp(
     const id = uid();
     return (
       await connection.query(
-        "INSERT INTO expenses(id,group_id,title,amount_minor,paid_by,splits,category,spent_on,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+        "INSERT INTO expenses(id,group_id,title,amount_minor,paid_by,splits,category,spent_on,created_by,itemization,conversion) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *",
         [
           id,
           gid,
@@ -165,6 +165,8 @@ export function createApp(
           data.category,
           data.spentOn,
           userId,
+          data.itemization ? JSON.stringify(data.itemization) : null,
+          data.conversion ? JSON.stringify(data.conversion) : null,
         ],
       )
     ).rows[0];
@@ -673,10 +675,18 @@ export function createApp(
             "SELECT id,name,created_at,revoked_at,last_used_at FROM agents WHERE group_id=$1 ORDER BY created_at DESC",
           ].map((q) => db.query(q, [g.id])),
         );
+      const defaults =
+        (
+          await db.query(
+            "SELECT preference FROM split_defaults WHERE user_id=$1 AND group_id=$2",
+            [u.id, g.id],
+          )
+        ).rows[0]?.preference || null;
       const net = balances(members.rows, expenses.rows, settlements.rows);
       if (g.owner_id !== u.id) delete g.invite_token;
       res.json({
         ...g,
+        splitDefaults: defaults,
         members: members.rows,
         expenses: expenses.rows,
         settlements: settlements.rows,
@@ -685,6 +695,92 @@ export function createApp(
         balances: net,
         transfers: simplifyDebts(net),
       });
+    }),
+  );
+  app.post(
+    "/api/groups/:id/split-defaults",
+    asyncRoute(async (req, res) => {
+      const { g, u } = await groupAccess(req, param(req, "id"));
+      const data = z
+        .object({
+          paidBy: z.string().min(1),
+          weights: z
+            .array(
+              z
+                .object({
+                  memberId: z.string().min(1),
+                  weight: z.number().int().positive().max(100_000_000),
+                })
+                .strict(),
+            )
+            .min(1)
+            .max(100),
+        })
+        .strict()
+        .parse(req.body);
+      const ids = (
+        await db.query("SELECT id FROM members WHERE group_id=$1", [g.id])
+      ).rows.map((m) => m.id);
+      if (
+        !ids.includes(data.paidBy) ||
+        data.weights.some((w) => !ids.includes(w.memberId)) ||
+        new Set(data.weights.map((w) => w.memberId)).size !==
+          data.weights.length
+      )
+        fail(400, "Choose unique participants and a payer from this group.");
+      await db.query(
+        "INSERT INTO split_defaults(user_id,group_id,preference) VALUES($1,$2,$3) ON CONFLICT(user_id,group_id) DO UPDATE SET preference=EXCLUDED.preference",
+        [u.id, g.id, JSON.stringify(data)],
+      );
+      res.json({ ok: true });
+    }),
+  );
+  app.delete(
+    "/api/groups/:id/split-defaults",
+    asyncRoute(async (req, res) => {
+      const { g, u } = await groupAccess(req, param(req, "id"));
+      await db.query(
+        "DELETE FROM split_defaults WHERE user_id=$1 AND group_id=$2",
+        [u.id, g.id],
+      );
+      res.json({ ok: true });
+    }),
+  );
+  app.get(
+    "/api/exchange-rate",
+    asyncRoute(async (req, res) => {
+      const u = await user(req);
+      await limit("fx:" + u.id, 60);
+      const data = z
+        .object({
+          from: z.enum(currencies),
+          to: z.enum(currencies),
+          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })
+        .strict()
+        .parse(req.query);
+      if (data.from === data.to)
+        return res.json({ rate: 1, date: data.date, source: "Manual" });
+      try {
+        const response = await fetch(
+          `https://api.frankfurter.dev/v2/rate/${data.from.toLowerCase()}/${data.to.toLowerCase()}?date=${data.date}`,
+          { signal: AbortSignal.timeout(8000) },
+        );
+        const rate = await response.json();
+        if (
+          !response.ok ||
+          !Number.isFinite(rate.rate) ||
+          rate.rate <= 0 ||
+          typeof rate.date !== "string"
+        )
+          throw new Error();
+        res.json({ rate: rate.rate, date: rate.date, source: "Frankfurter" });
+      } catch {
+        fail(
+          503,
+          "Exchange rate unavailable. Enter the rate shown on your statement instead.",
+        );
+      }
     }),
   );
   app.post(
