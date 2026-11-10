@@ -11,6 +11,7 @@ import { z, ZodError } from "zod";
 import type { Database } from "./db";
 import { hash, token } from "./auth";
 import { normalizePhone } from "./phone";
+import { passwordHash, verifyPassword } from "./password";
 import {
   balances,
   simplifyDebts,
@@ -260,9 +261,10 @@ export function createApp(
         ).rows[0];
         if (existing) {
           const current = (
-            await db.query("SELECT id,name,phone_e164 FROM users WHERE id=$1", [
-              existing.user_id,
-            ])
+            await db.query(
+              "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled FROM users WHERE id=$1",
+              [existing.user_id],
+            )
           ).rows[0];
           if (current) {
             saveCookie(res, value);
@@ -293,9 +295,190 @@ export function createApp(
         ...(req.headers.origin || req.headers["sec-fetch-mode"]
           ? {}
           : { token: valueNew }),
-        user: { id, name, phone_e164: null },
+        user: { id, name, phone_e164: null, sign_in_enabled: false },
         created: true,
       });
+    }),
+  );
+  const passwordSchema = z
+    .string()
+    .min(12, "Use at least 12 characters for your password.")
+    .max(128);
+  const ownProfile = async (tx: Database, id: string) =>
+    (
+      await tx.query(
+        "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled FROM users WHERE id=$1",
+        [id],
+      )
+    ).rows[0];
+  const sendSession = (
+    req: Request,
+    res: Response,
+    value: string,
+    profile: any,
+  ) => {
+    saveCookie(res, value);
+    res.json({
+      ...(req.headers.origin || req.headers["sec-fetch-mode"]
+        ? {}
+        : { token: value }),
+      user: profile,
+    });
+  };
+  app.post(
+    "/api/auth/register",
+    asyncRoute(async (req, res) => {
+      const u = await user(req);
+      const data = z
+        .object({ phone: z.string().max(80), password: passwordSchema })
+        .strict()
+        .parse(req.body);
+      const phone = normalizePhone(data.phone);
+      if (!phone)
+        fail(
+          400,
+          "Enter a valid phone number, including the country code outside the US.",
+        );
+      await limit("account-setup:" + u.id, 5);
+      await limit("account-setup-ip:" + req.ip, 10);
+      const digest = await passwordHash(data.password),
+        value = token("fs_");
+      let profile;
+      try {
+        profile = await db.transaction(async (tx) => {
+          await tx.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [u.id]);
+          if (
+            (
+              await tx.query(
+                "SELECT user_id FROM user_credentials WHERE user_id=$1",
+                [u.id],
+              )
+            ).rows.length
+          )
+            fail(
+              409,
+              "Sign-in is already enabled. Use your account settings to change the password.",
+            );
+          await tx.query(
+            "UPDATE users SET phone_verified_at=CASE WHEN phone_e164=$1 THEN phone_verified_at ELSE NULL END,phone_e164=$1 WHERE id=$2",
+            [phone, u.id],
+          );
+          await tx.query(
+            "INSERT INTO user_credentials(user_id,password_hash) VALUES($1,$2)",
+            [u.id, digest],
+          );
+          await tx.query("DELETE FROM sessions WHERE token_hash=$1", [
+            hash(credential(req)),
+          ]);
+          await tx.query(
+            "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '365 days')",
+            [hash(value), u.id],
+          );
+          return ownProfile(tx, u.id);
+        });
+      } catch (e) {
+        if ((e as { code?: string }).code === "23505")
+          fail(
+            409,
+            "This number already has an account. Sign in instead. If you have not set a password yet, open Fairshare on your original device and set it there first.",
+          );
+        throw e;
+      }
+      sendSession(req, res, value, profile);
+    }),
+  );
+  app.post(
+    "/api/auth/login",
+    asyncRoute(async (req, res) => {
+      const data = z
+        .object({
+          phone: z.string().max(80),
+          password: z.string().min(1).max(128),
+        })
+        .strict()
+        .parse(req.body);
+      const phone = normalizePhone(data.phone);
+      await limit("login-ip:" + req.ip, 30);
+      await limit("login-phone:" + (phone || "invalid"), 10);
+      const candidate = phone
+        ? (
+            await db.query(
+              "SELECT u.id,c.password_hash FROM users u JOIN user_credentials c ON c.user_id=u.id WHERE u.phone_e164=$1",
+              [phone],
+            )
+          ).rows[0]
+        : null;
+      if (!(await verifyPassword(data.password, candidate?.password_hash)))
+        fail(
+          401,
+          "Phone number or password is incorrect. If you have not set a password yet, open your original device to set one.",
+        );
+      const value = token("fs_");
+      const profile = await db.transaction(async (tx) => {
+        await tx.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [
+          candidate.id,
+        ]);
+        const current = (
+          await tx.query(
+            "SELECT u.phone_e164,c.password_hash FROM users u JOIN user_credentials c ON c.user_id=u.id WHERE u.id=$1",
+            [candidate.id],
+          )
+        ).rows[0];
+        if (
+          current?.phone_e164 !== phone ||
+          current?.password_hash !== candidate.password_hash
+        )
+          fail(401, "Account details changed. Please sign in again.");
+        await tx.query("DELETE FROM sessions WHERE token_hash=$1", [
+          hash(credential(req)),
+        ]);
+        await tx.query(
+          "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '365 days')",
+          [hash(value), candidate.id],
+        );
+        return ownProfile(tx, candidate.id);
+      });
+      sendSession(req, res, value, profile);
+    }),
+  );
+  app.post(
+    "/api/me/password",
+    asyncRoute(async (req, res) => {
+      const u = await user(req);
+      const data = z
+        .object({
+          currentPassword: z.string().min(1).max(128),
+          password: passwordSchema,
+        })
+        .strict()
+        .parse(req.body);
+      await limit("password-change:" + u.id, 5);
+      const digest = await passwordHash(data.password),
+        value = token("fs_");
+      const profile = await db.transaction(async (tx) => {
+        await tx.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [u.id]);
+        const current = (
+          await tx.query(
+            "SELECT password_hash FROM user_credentials WHERE user_id=$1",
+            [u.id],
+          )
+        ).rows[0];
+        if (
+          !(await verifyPassword(data.currentPassword, current?.password_hash))
+        )
+          fail(401, "Current password is incorrect.");
+        await tx.query(
+          "UPDATE user_credentials SET password_hash=$1,updated_at=now() WHERE user_id=$2",
+          [digest, u.id],
+        );
+        await tx.query("DELETE FROM sessions WHERE user_id=$1", [u.id]);
+        await tx.query(
+          "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '365 days')",
+          [hash(value), u.id],
+        );
+        return ownProfile(tx, u.id);
+      });
+      sendSession(req, res, value, profile);
     }),
   );
   app.post(
@@ -312,9 +495,10 @@ export function createApp(
       });
       res.json(
         (
-          await db.query("SELECT id,name,phone_e164 FROM users WHERE id=$1", [
-            u.id,
-          ])
+          await db.query(
+            "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled FROM users WHERE id=$1",
+            [u.id],
+          )
         ).rows[0],
       );
     }),
@@ -323,8 +507,11 @@ export function createApp(
     "/api/me/phone",
     asyncRoute(async (req, res) => {
       const u = await user(req);
-      const { phone } = z
-        .object({ phone: z.string().trim().min(1).max(80) })
+      const { phone, currentPassword } = z
+        .object({
+          phone: z.string().trim().min(1).max(80),
+          currentPassword: z.string().max(128).optional(),
+        })
         .strict()
         .parse(req.body);
       const normalized = normalizePhone(phone);
@@ -335,13 +522,32 @@ export function createApp(
         );
       await limit("phone-entry:" + u.id, 10);
       try {
-        // The database's UNIQUE constraint arbitrates concurrent claims. The
-        // session owns this row; an entered number never selects another user.
-        const result = await db.query(
-          "UPDATE users SET phone_verified_at=CASE WHEN phone_e164=$1 THEN phone_verified_at ELSE NULL END,phone_e164=$1 WHERE id=$2 RETURNING id,name,phone_e164",
-          [normalized, u.id],
-        );
-        res.json(result.rows[0]);
+        const profile = await db.transaction(async (tx) => {
+          await tx.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [u.id]);
+          const credentialRow = (
+            await tx.query(
+              "SELECT password_hash FROM user_credentials WHERE user_id=$1",
+              [u.id],
+            )
+          ).rows[0];
+          if (
+            credentialRow &&
+            !(await verifyPassword(
+              currentPassword || "",
+              credentialRow.password_hash,
+            ))
+          )
+            fail(
+              401,
+              "Enter your current password to change your phone number.",
+            );
+          await tx.query(
+            "UPDATE users SET phone_verified_at=CASE WHEN phone_e164=$1 THEN phone_verified_at ELSE NULL END,phone_e164=$1 WHERE id=$2",
+            [normalized, u.id],
+          );
+          return ownProfile(tx, u.id);
+        });
+        res.json(profile);
       } catch (error) {
         if ((error as { code?: string }).code === "23505")
           fail(
@@ -368,9 +574,10 @@ export function createApp(
       const u = await user(req);
       res.json(
         (
-          await db.query("SELECT id,name,phone_e164 FROM users WHERE id=$1", [
-            u.id,
-          ])
+          await db.query(
+            "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled FROM users WHERE id=$1",
+            [u.id],
+          )
         ).rows[0],
       );
     }),

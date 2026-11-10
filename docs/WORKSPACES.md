@@ -1,15 +1,32 @@
-# Private device workspaces
+# Accounts and cross-device sign-in
 
-Fairshare uses simple phone-number entry without passwords or SMS verification. On startup the client calls `POST /api/workspace`. A valid existing cookie or native token resumes the same user ID and extends that session for one year. A missing, invalid, revoked, or expired token creates a new empty private identity with a random session token. The client prompts users without a stored number to enter one before continuing; valid existing sessions and their data are retained. This UI step associates a number with the current identity, rather than authenticating another identity. API clients continue to use the existing session credential.
+Fairshare supports phone number + password sign-in with no SMS provider or verification code. A number is a unique sign-in name, not verified proof of phone ownership. Passwords are salted and hashed using asynchronous scrypt (`N=32768, r=8, p=3`, 64-byte output); plaintext passwords and hashes never appear in API responses. Legacy unused password fields are not reactivated.
 
-Web sessions use HttpOnly, Secure in production, SameSite=Strict cookies. Native clients keep the token in SecureStore. The client deduplicates bootstrap requests; browsers with Web Locks also serialize bootstrap across tabs. Tokens remain hashed in PostgreSQL. Creating fresh identities is limited to twenty per client IP per fifteen minutes. Existing valid sessions do not consume that quota. Identity and session creation are transactional.
+## Existing accounts
 
-Existing real users, groups, membership IDs, expenses, and agent keys are preserved. Historical email/password fields remain unused in storage to avoid destructive migration. The existing `users.phone_e164` unique column is reused for phone entry; legacy phone numbers and verification timestamps are preserved until a number changes. No login-by-number, registration, OTP, or account-recovery endpoint exists. No Twilio runtime or configuration dependency exists. The API still requires the private session for group operations and enforces membership and owner permissions. Agent keys remain separately scoped and revocable.
+Open Fairshare on the browser or device that already has your account session. The setup screen recognizes your stored number and asks you to set a password once. This adds a credential to the existing user ID: groups, memberships, expenses, agent keys and private bank connections remain unchanged. A new device cannot set a password merely by entering an already-associated phone number. If all existing sessions were lost before password setup, there is no automatic recovery through an unverified number.
 
-A new visitor opening an invite automatically receives a private workspace, previews the group, and chooses Join group. If the workspace has no phone number, the entry screen appears before the invitation can be accepted. The pending invitation is retained. Invite preview does not grant access or join automatically. A display name can be changed later from Workspace; it updates only that user and their linked memberships, never unrelated named people or existing debt amounts.
+After setup, sign in on any device using the same phone and password. US input defaults to +1; international numbers must include + and country code. Numbers are validated and normalized to E.164 using libphonenumber, and database uniqueness resolves concurrent registrations. Phone numbers remain excluded from group and agent responses.
 
-Clearing browser/app storage, switching devices, or allowing the session to expire does not restore the old workspace. It starts a separate one. There is no automatic recovery or hidden shared administrator identity. Group invitations can grant a new device new membership but do not recover or merge its old identity. This limitation appears in Workspace settings. Existing valid sessions must be retained to keep direct access to historical private data.
+## Sessions and changes
 
-`DELETE /api/workspace/session` revokes only the presented session for API consumers. It is not exposed as a casual logout button because the app cannot recover a lost private workspace. `POST /api/me/name` changes the authenticated display name. `POST /api/me/phone` accepts only `{ "phone": "(202) 555-0123" }` and associates it with the presented session user. Numbers are validated with libphonenumber metadata, use US as the default region, and are stored in E.164 format. International input must include `+` and the country code; extensions and arbitrary text are rejected. The database UNIQUE constraint resolves concurrent claims; a duplicate returns 409 without switching or merging users. A number change clears its verification timestamp and releases the previous number. Claims are limited to ten per user per fifteen minutes.
+The client bootstraps or resumes a private workspace before showing sign-in/setup. A valid existing cookie/native session preserves the user ID and renews for one year. A fresh anonymous workspace cannot access existing accounts without the password; successful sign-in replaces its current session and loads the authenticated user's groups. It does not merge or delete identities. Pending group invitations remain available after sign-in.
 
-`/api/me`, workspace bootstrap, name updates, and phone updates return only the owner’s `id`, `name`, and `phone_e164`. Group and agent responses exclude phone numbers. Phone ownership is not verified, so this association must never be used as an authorization or recovery credential. A matching number entered on another device cannot recover the original workspace. Lost-session recovery and verified cross-device sign-in remain out of scope.
+Web sessions use HttpOnly cookies, Secure in production and SameSite=Strict. Browser responses omit the raw session token. Native clients receive the bearer token and store it in SecureStore. Only token hashes are stored in PostgreSQL. Sign-out revokes the presented session; other signed-in devices remain active. Password changes require the current password, rotate the current session and revoke every previous session. Changing a sign-in phone number also requires the current password. No SMS reset or forgotten-password recovery is implemented; keep your password in a password manager.
+
+Registration, login, password changes and phone changes are throttled. Login failures use the same message for an unknown number and a wrong password and perform a password derivation even when the account is missing. Login rechecks credential/number state while holding the account lock so a concurrent password or number change cannot establish an obsolete session. Origin restrictions apply to auth routes as well as other API routes.
+
+## API
+
+- `POST /api/workspace` — resume a session or create an empty private workspace; profile includes `sign_in_enabled`.
+- `POST /api/auth/register` — authenticated workspace session plus `{phone,password}`; enables sign-in on that same user once. Minimum password length 12, maximum 128 characters.
+- `POST /api/auth/login` — `{phone,password}`; creates a new session for the matching account.
+- `POST /api/me/password` — authenticated `{currentPassword,password}`; changes password and revokes old sessions.
+- `POST /api/me/phone` — authenticated `{phone,currentPassword}` after sign-in setup; before setup, only `{phone}` is needed to associate a number with the current workspace.
+- `POST /api/me/name` — changes the display name without changing identity.
+- `DELETE /api/workspace/session` — signs out the current device.
+- `GET /api/me` — own ID, name, phone and sign-in-enabled flag only.
+
+Apply the additive `user_credentials` table migration before deployment. No new provider credentials or environment variables are required. Existing workspace/agent authorization and bank-token encryption continue to use the stable user ID.
+
+References: [Node crypto scrypt](https://nodejs.org/api/crypto.html#cryptoscryptpassword-salt-keylen-options-callback), [OWASP password storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).

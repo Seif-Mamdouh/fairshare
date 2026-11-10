@@ -2,7 +2,7 @@
 
 Workspace → Banks & private transactions connects US checking, savings, and credit-card accounts through Plaid Transactions. Connecting does not post expenses. Press Sync transactions, choose a posted purchase, review the group, payer, participants and equal/exact splits, then explicitly share it as an expense. Credits, pending transactions, currency mismatches and duplicate imports cannot be shared. Sync does not modify an expense already imported.
 
-Bank links, accounts and transactions belong to the current private workspace. Group collaborators and agent credentials cannot read them. Only the reviewed expense is shared. Account numbers, routing numbers, balances and raw provider responses are not stored or returned. No payment or money movement APIs are used. A phone number is profile information, not proof of account ownership; existing session credentials remain required.
+Bank links, accounts and transactions belong to the current private workspace. Group collaborators and agent credentials cannot read them. Only the reviewed expense is shared. Account numbers, routing numbers, balances and raw provider responses are not stored or returned. No payment or money movement APIs are used. A phone number is a sign-in name, not proof of account ownership; password-authenticated sessions remain required.
 
 ## Server configuration
 
@@ -32,7 +32,7 @@ Access and short-lived Link tokens are AES-256-GCM encrypted with owner/type/rec
 
 Disconnect revokes the Plaid Item, erases private accounts/transactions and credentials, and preserves reviewed expenses plus a minimal HMAC duplicate-import ledger. If Plaid cannot confirm revocation, the connection is marked disconnecting and further sync/import is blocked until retry succeeds. Reconnect-required items show an attention state; disconnect and reconnect through Plaid. There is no automatic update-mode repair or background/webhook sync in this version. Sync reads data already available from Plaid rather than requesting paid refreshes; initial data can take time to appear.
 
-Keep your device session. Clearing storage or losing it creates a different private workspace; typing a phone number cannot reclaim the old workspace. Disconnect banks before deliberately clearing the session. There is no account recovery flow in this release.
+Set a password on your original device before clearing its session. Then sign in with your phone number and password on any device to access the same private bank connections. A number alone cannot recover access; forgotten-password reset is not implemented.
 
 ## Workspace API
 

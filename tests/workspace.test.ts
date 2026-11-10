@@ -129,6 +129,7 @@ test("existing real-style sessions preserve identity, history, agent credentials
         id: "existing",
         name: "Existing person",
         phone_e164: "+12025550121",
+        sign_in_enabled: false,
       });
       assert.equal(r.body.created, false);
       assert.equal(r.body.token, key);
@@ -272,16 +273,10 @@ test("invalid, expired and revoked sessions never recover a previous private ide
     await db.close();
   }
 });
-test("login and OTP endpoints are absent and new-identity creation is bounded", async () => {
+test("OTP endpoints remain absent and new-identity creation is bounded", async () => {
   const { db, http } = await setup();
   try {
-    for (const path of [
-      "register",
-      "login",
-      "logout",
-      "phone/start",
-      "phone/check",
-    ])
+    for (const path of ["logout", "phone/start", "phone/check"])
       await http
         .post("/api/auth/" + path)
         .send({})
