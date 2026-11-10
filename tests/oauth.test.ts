@@ -125,7 +125,7 @@ async function setup() {
         resource,
         ...extra,
       });
-  const mcp = (value: string) =>
+  const mcp = (value: string, name = "get_group_context", args: object = {}) =>
     http
       .post("/api/mcp")
       .set(auth(value))
@@ -134,7 +134,7 @@ async function setup() {
         jsonrpc: "2.0",
         id: 1,
         method: "tools/call",
-        params: { name: "get_group_context", arguments: {} },
+        params: { name, arguments: args },
       });
   const close = async () => {
     await new Promise<void>((resolve, reject) =>
@@ -345,6 +345,34 @@ test("OAuth code exchange requires exact client, callback, resource and PKCE; ac
     assert.equal(context.group.id, s.owner.group.id);
     assert.deepEqual(Object.keys(context.members[0]).sort(), ["id", "name"]);
     assert.ok(!JSON.stringify(context).includes(s.other.group.id));
+    const draft = JSON.parse(
+      (
+        await s
+          .mcp(t.access_token, "submit_receipt", {
+            sourceId: "oauth-submit-it",
+            title: "Lunch",
+            currency: "USD",
+            amountMinor: 1200,
+            paidBy: context.members[0].id,
+            splits: [{ memberId: context.members[0].id, amountMinor: 1200 }],
+            spentOn: "2026-11-10",
+          })
+          .expect(200)
+      ).body.result.content[0].text,
+    );
+    const posted = (
+      await s
+        .mcp(t.access_token, "finalize_receipts", {
+          receiptIds: [draft.id],
+          userConfirmed: true,
+        })
+        .expect(200)
+    ).body.result;
+    assert.ok(!posted.isError, JSON.stringify(posted));
+    assert.equal(
+      JSON.parse(posted.content[0].text).receipts[0].status,
+      "approved",
+    );
     await s.http
       .get("/api/v1/agent/context")
       .set(auth(t.access_token))
@@ -527,7 +555,7 @@ test("official SDK discovers, registers, opens authorization, exchanges PKCE cod
         authProvider: provider,
       }),
     );
-    assert.equal((await client.listTools()).tools.length, 3);
+    assert.equal((await client.listTools()).tools.length, 5);
     const context: any = await client.callTool({
       name: "get_group_context",
       arguments: {},
@@ -540,7 +568,7 @@ test("official SDK discovers, registers, opens authorization, exchanges PKCE cod
     await s.db.query(
       "UPDATE oauth_access_tokens SET expires_at=now()-interval '1 second'",
     );
-    assert.equal((await client.listTools()).tools.length, 3);
+    assert.equal((await client.listTools()).tools.length, 5);
     assert.notEqual(tokens.refresh_token, oldRefresh);
   } finally {
     await client?.close();

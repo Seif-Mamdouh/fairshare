@@ -10,6 +10,8 @@ type Dependencies = {
   authenticate(req: Request): Promise<AgentIdentity>;
   context(agent: AgentIdentity): Promise<unknown>;
   submit(agent: AgentIdentity, body: unknown): Promise<unknown>;
+  drafts(agent: AgentIdentity, body: unknown): Promise<unknown>;
+  finalize(agent: AgentIdentity, body: unknown): Promise<unknown>;
   status(agent: AgentIdentity, receiptId: string): Promise<unknown>;
 };
 
@@ -24,9 +26,7 @@ export function installMcp(app: Express, d: Dependencies) {
         d.challenge || 'Bearer realm="fairshare-agent"',
       );
       if (!/^Bearer [^\s]+$/i.test(req.headers.authorization || "")) {
-        return res
-          .status(401)
-          .json({ error: "MCP authorization is required" });
+        return res.status(401).json({ error: "MCP authorization is required" });
       }
       const agent = await d.authenticate(req);
       res.removeHeader("WWW-Authenticate");
@@ -50,10 +50,14 @@ export function installMcp(app: Express, d: Dependencies) {
                 ? await d.context(agent)
                 : path === "/receipts" && method === "POST"
                   ? await d.submit(agent, body)
-                  : await d.status(
-                      agent,
-                      decodeURIComponent(path.slice("/receipts/".length)),
-                    );
+                  : path === "/receipts/drafts" && method === "POST"
+                    ? await d.drafts(agent, body)
+                    : path === "/receipts/finalize" && method === "POST"
+                      ? await d.finalize(agent, body)
+                      : await d.status(
+                          agent,
+                          decodeURIComponent(path.slice("/receipts/".length)),
+                        );
             return {
               content: [{ type: "text", text: JSON.stringify(result) }],
             };

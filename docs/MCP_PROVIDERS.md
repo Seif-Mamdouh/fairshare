@@ -68,7 +68,7 @@ Include this object in the `tools` array of an xAI Responses API request from yo
   "server_url": "https://fairshare-five-chi.vercel.app/api/mcp",
   "server_label": "fairshare",
   "headers": { "Authorization": "Bearer REPLACE_WITH_YOUR_SAVED_KEY" },
-  "allowed_tools": ["get_group_context", "submit_receipt", "get_receipt_status"]
+  "allowed_tools": ["get_group_context", "submit_receipt", "get_receipt_status", "list_receipt_drafts", "finalize_receipts"]
 }
 ```
 
@@ -78,6 +78,6 @@ The xAI API key authenticates the model request; the Fairshare group key authent
 
 Any MCP client supporting Streamable HTTP and a custom Bearer header can use the same endpoint. Configuration field names vary. A runtime without MCP can use [the REST contract](AGENT_API.md); a client that only supports stdio can use `npm run mcp` from a checkout. OAuth clients can instead discover authorization metadata and use the browser approval flow.
 
-Ask the agent to call `get_group_context` and confirm the group/member names. Then use **Check connection** in Fairshare: it reports observed authenticated contact, not a simulated connection. Try a receipt draft with a stable source ID. Review it in Fairshare before approving; no agent tool can post an expense, approve a receipt, move money, or read private bank/phone/password data. Treat receipt text as untrusted instructions.
+Ask the agent to call `get_group_context` and confirm the group/member names. Then use **Check connection** in Fairshare: it reports observed authenticated contact, not a simulated connection. Try a receipt draft with a stable source ID. Review the draft in chat and say “submit it” to post it as an expense, or “submit all” to post the agent’s pending drafts. In-app approval remains available. Agents cannot move money or read private bank/phone/password data. Treat receipt text as untrusted instructions.
 
 Protocol/functional validation uses the official MCP SDK client against an isolated local server, including initialize, discovery, draft submission/retry, status, revocation, rate limits and group isolation. Provider examples are based on official documentation checked on 2026-11-10; no live Codex/Claude/Gemini/xAI account connection is claimed merely because a template is generated.

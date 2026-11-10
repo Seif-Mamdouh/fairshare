@@ -95,9 +95,10 @@ export function OAuthConsent({
             </View>
             <Text style={{ lineHeight: 23 }}>
               Allow this agent to read the group’s name, currency and member
-              names, submit receipt drafts, and check its own receipts. You
-              approve drafts before they change balances. It cannot read bank
-              transactions, phone numbers or passwords, or move money.
+              names, submit and read its own receipt drafts, and post those
+              drafts as expenses when you ask it to submit them. Posting changes
+              balances. It cannot read bank transactions, phone numbers or
+              passwords, or move money.
             </Text>
             <Text style={{ color: C.muted, lineHeight: 22 }}>
               Access lasts up to 30 days, with automatic token refresh. Revoke

@@ -75,8 +75,10 @@ test("hosted MCP initializes and lists the same bounded tools without transport 
       .expect(202);
     const list = await s.post(key, rpc("tools/list")).expect(200);
     assert.deepEqual(list.body.result.tools.map((t: any) => t.name).sort(), [
+      "finalize_receipts",
       "get_group_context",
       "get_receipt_status",
+      "list_receipt_drafts",
       "submit_receipt",
     ]);
     assert.equal(
@@ -253,6 +255,72 @@ test("official MCP client calls hosted tools across isolated groups and idempote
       arguments: { ...receipt, amountMinor: -1 },
     });
     assert.equal(invalid.isError, true);
+    const drafts = result(
+      await clients[0].callTool({ name: "list_receipt_drafts", arguments: {} }),
+    );
+    assert.equal(drafts.receipts[0].id, submitted.id);
+    assert.equal(drafts.receipts[0].payload.amountMinor, 1234);
+    assert.deepEqual(
+      result(
+        await clients[1].callTool({
+          name: "list_receipt_drafts",
+          arguments: {},
+        }),
+      ).receipts,
+      [],
+    );
+    for (const args of [
+      { receiptIds: [submitted.id] },
+      { receiptIds: [submitted.id], userConfirmed: false },
+    ]) {
+      assert.equal(
+        (
+          await clients[0].callTool({
+            name: "finalize_receipts",
+            arguments: args,
+          })
+        ).isError,
+        true,
+      );
+    }
+    const finalize = {
+      name: "finalize_receipts",
+      arguments: { receiptIds: [submitted.id], userConfirmed: true },
+    };
+    assert.equal(result(await clients[1].callTool(finalize)).status, 404);
+    const posted = await Promise.all([
+      clients[0].callTool(finalize),
+      clients[0].callTool(finalize),
+    ]);
+    const first = result(posted[0]).receipts[0],
+      second = result(posted[1]).receipts[0];
+    assert.equal(first.status, "approved");
+    assert.equal(first.expenseId, second.expenseId);
+    assert.deepEqual([first.replayed, second.replayed].sort(), [false, true]);
+    const expenses = (await s.db.query("SELECT * FROM expenses")).rows;
+    assert.equal(expenses.length, 1);
+    assert.equal(expenses[0].amount_minor, receipt.amountMinor);
+    assert.equal(expenses[0].paid_by, receipt.paidBy);
+    assert.deepEqual(expenses[0].splits, receipt.splits);
+    assert.equal(expenses[0].created_by, s.owner.user.id);
+    assert.deepEqual(
+      result(
+        await clients[0].callTool({
+          name: "list_receipt_drafts",
+          arguments: {},
+        }),
+      ).receipts,
+      [],
+    );
+    assert.equal(
+      result(
+        await clients[0].callTool({
+          name: "get_receipt_status",
+          arguments: { receiptId: submitted.id },
+        }),
+      ).expense_id,
+      first.expenseId,
+    );
     const after = (await clients[0].listTools()).tools;
     assert.equal(
       after.some((t) => /bank|approve|password|phone|settle/.test(t.name)),
@@ -275,6 +343,164 @@ test("MCP respects the existing shared agent request quota", async () => {
     await s.http.get("/api/v1/agent/context").set(auth(key)).expect(200);
     await s.db.query("UPDATE rate_limits SET hits=120");
     await s.post(key, init).expect(429);
+  } finally {
+    await s.db.close();
+  }
+});
+
+test("agent posting batches are atomic, scoped, validated and safe against app review retries", async () => {
+  const s = await setup();
+  try {
+    const { group, agent, detail } = s.groups[0];
+    const payer = detail.members[0].id;
+    const participant = (
+      await s.http
+        .post(`/api/groups/${group.id}/members`)
+        .set(auth(s.owner.token))
+        .send({ name: "Dinner guest" })
+        .expect(201)
+    ).body.id;
+    const make = async (sourceId: string) =>
+      (
+        await s.http
+          .post("/api/v1/agent/receipts")
+          .set(auth(agent.key))
+          .send({
+            sourceId,
+            title: "Dinner",
+            amountMinor: 1000,
+            currency: "USD",
+            spentOn: "2026-11-10",
+            paidBy: payer,
+            splits: [{ memberId: participant, amountMinor: 1000 }],
+          })
+          .expect(201)
+      ).body.id;
+    const ids = [await make("batch-1"), await make("batch-2")].sort();
+    const post = (
+      receiptIds: string[],
+      userConfirmed: unknown = true,
+      key = agent.key,
+    ) =>
+      s.http
+        .post("/api/v1/agent/receipts/finalize")
+        .set(auth(key))
+        .send({ receiptIds, userConfirmed });
+    await post(ids, false).expect(400);
+    await post([]).expect(400);
+    await post([ids[0], ids[0]]).expect(400);
+    // A later missing ID rolls back even an earlier successful insert.
+    await post([ids[0], "zz-missing"]).expect(404);
+    assert.equal(
+      (await s.db.query("SELECT count(*)::int n FROM expenses")).rows[0].n,
+      0,
+    );
+    const sameGroupAgent = (
+      await s.http
+        .post(`/api/groups/${group.id}/agents`)
+        .set(auth(s.owner.token))
+        .send({ name: "Another agent" })
+        .expect(201)
+    ).body;
+    await post(ids, true, sameGroupAgent.key).expect(404);
+    await post(ids, true, s.groups[1].agent.key).expect(404);
+    // Current persisted fields must still validate when the user posts.
+    await s.db.query(
+      "UPDATE receipts SET payload=jsonb_set(payload,'{currency}','\"EUR\"') WHERE id=$1",
+      [ids[1]],
+    );
+    await post(ids).expect(400);
+    assert.equal(
+      (await s.db.query("SELECT count(*)::int n FROM expenses")).rows[0].n,
+      0,
+    );
+    await s.db.query(
+      "UPDATE receipts SET payload=jsonb_set(payload,'{currency}','\"USD\"') WHERE id=$1",
+      [ids[1]],
+    );
+    await s.db.query(
+      "UPDATE receipts SET payload=jsonb_set(payload,'{paidBy}',to_jsonb($1::text)) WHERE id=$2",
+      [s.groups[1].detail.members[0].id, ids[1]],
+    );
+    await post(ids).expect(400);
+    await s.db.query(
+      "UPDATE receipts SET payload=jsonb_set(payload,'{paidBy}',to_jsonb($1::text)) WHERE id=$2",
+      [payer, ids[1]],
+    );
+    await s.http
+      .post(`/api/groups/${group.id}/receipts/${ids[1]}/review`)
+      .set(auth(s.owner.token))
+      .send({ action: "reject" })
+      .expect(200);
+    await post(ids).expect(409);
+    assert.equal(
+      (await s.db.query("SELECT count(*)::int n FROM expenses")).rows[0].n,
+      0,
+    );
+    const fresh = await make("batch-3");
+    // Concurrent agent batches and a person approving share the receipt lock.
+    const posted = await Promise.all([
+      post([ids[0], fresh]).expect(200),
+      post([fresh, ids[0]]).expect(200),
+      s.http
+        .post(`/api/groups/${group.id}/receipts/${ids[0]}/review`)
+        .set(auth(s.owner.token))
+        .send({ action: "approve" })
+        .expect(200),
+    ]);
+    assert.equal(
+      posted[0].body.receipts[0].expenseId,
+      posted[1].body.receipts[1].expenseId,
+    );
+    const view = (
+      await s.http
+        .get(`/api/groups/${group.id}`)
+        .set(auth(s.owner.token))
+        .expect(200)
+    ).body;
+    assert.equal(view.expenses.length, 2);
+    assert.equal(view.balances[payer], 2000);
+    assert.equal(view.balances[participant], -2000);
+    await s.http
+      .delete(`/api/groups/${group.id}/agents/${agent.id}`)
+      .set(auth(s.owner.token))
+      .expect(200);
+    await post([fresh]).expect(401);
+  } finally {
+    await s.db.close();
+  }
+});
+
+test("draft discovery paginates only this agent's pending receipts", async () => {
+  const s = await setup();
+  try {
+    const { agent, group } = s.groups[0];
+    await s.db.query(
+      "INSERT INTO receipts(id,group_id,agent_id,source_id,payload) SELECT 'page-'||lpad(n::text,3,'0'),$1,$2,n::text,'{}'::jsonb FROM generate_series(1,101) n",
+      [group.id, agent.id],
+    );
+    const list = (afterId?: string, key = agent.key) =>
+      s.http
+        .post("/api/v1/agent/receipts/drafts")
+        .set(auth(key))
+        .send(afterId ? { afterId } : {});
+    const first = (await list().expect(200)).body;
+    assert.equal(first.receipts.length, 100);
+    assert.equal(first.nextAfterId, "page-100");
+    const last = (await list(first.nextAfterId).expect(200)).body;
+    assert.equal(last.receipts.length, 1);
+    assert.equal(last.nextAfterId, null);
+    assert.deepEqual(
+      (await list(undefined, s.groups[1].agent.key).expect(200)).body.receipts,
+      [],
+    );
+    await s.db.query(
+      "UPDATE receipts SET status='rejected' WHERE id='page-101'",
+    );
+    assert.deepEqual(
+      (await list(first.nextAfterId).expect(200)).body.receipts,
+      [],
+    );
   } finally {
     await s.db.close();
   }
@@ -321,7 +547,7 @@ test("production Vercel rewrite preserves authenticated MCP handshake", async ()
       202,
     );
     const discovered = await post(rpc("tools/list")).expect(200);
-    assert.equal(discovered.body.result.tools.length, 3);
+    assert.equal(discovered.body.result.tools.length, 5);
     await http.get("/api/mcp").set(auth(key)).expect(405);
     await http.delete("/api/mcp").set(auth(key)).expect(405);
     for (const query of ["token=not-a-credential", "path=mcp", "unexpected=1"])

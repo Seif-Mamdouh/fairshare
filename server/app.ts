@@ -5,6 +5,7 @@ import express, {
 } from "express";
 import { installBanking } from "./banking";
 import { installMcp } from "./mcp-http";
+import { finalizeReceiptsSchema, listDraftsSchema } from "./mcp-tools";
 import { installOAuth, oauthIssuer, oauthPublicPaths } from "./oauth";
 import { configuredBanking, type Banking } from "./bank-provider";
 import { randomUUID } from "node:crypto";
@@ -1016,7 +1017,11 @@ export function createApp(
       group: g,
       members,
       agent: { id: a.id, name: a.name },
-      capabilities: ["receipts:submit", "receipts:read-own"],
+      capabilities: [
+        "receipts:submit",
+        "receipts:read-own",
+        "receipts:finalize-own",
+      ],
     };
   }
   async function agentReceiptStatus(a: { id: string }, receiptId: string) {
@@ -1028,6 +1033,82 @@ export function createApp(
     ).rows[0];
     if (!r) fail(404, "Receipt not found");
     return r;
+  }
+  async function agentDrafts(
+    a: { id: string; group_id: string },
+    raw: unknown,
+  ) {
+    const data = listDraftsSchema.parse(raw);
+    const rows = (
+      await db.query(
+        "SELECT id,payload,created_at,(image_data IS NOT NULL) AS has_image FROM receipts WHERE agent_id=$1 AND group_id=$2 AND status='pending' AND id>$3 ORDER BY id LIMIT 101",
+        [a.id, a.group_id, data.afterId || ""],
+      )
+    ).rows;
+    return {
+      receipts: rows.slice(0, 100),
+      nextAfterId: rows.length > 100 ? rows[99].id : null,
+    };
+  }
+  async function finalizeAgentReceipts(
+    a: { id: string; group_id: string },
+    raw: unknown,
+  ) {
+    const data = finalizeReceiptsSchema.parse(raw);
+    return db.transaction(async (tx) => {
+      const group = (
+        await tx.query("SELECT owner_id,currency FROM groups WHERE id=$1", [
+          a.group_id,
+        ])
+      ).rows[0];
+      if (!group) fail(404, "Group not found");
+      const results = new Map<
+        string,
+        { id: string; status: string; expenseId: string; replayed: boolean }
+      >();
+      // Stable lock order prevents overlapping batches from deadlocking. The same
+      // row lock also serializes posting against the app's human review action.
+      for (const id of [...data.receiptIds].sort()) {
+        const receipt = (
+          await tx.query(
+            "SELECT * FROM receipts WHERE id=$1 AND agent_id=$2 AND group_id=$3 FOR UPDATE",
+            [id, a.id, a.group_id],
+          )
+        ).rows[0];
+        if (!receipt) fail(404, "Receipt not found");
+        if (receipt.status === "rejected")
+          fail(409, "Rejected receipts cannot be posted");
+        if (receipt.status === "approved") {
+          results.set(id, {
+            id,
+            status: "approved",
+            expenseId: receipt.expense_id,
+            replayed: true,
+          });
+          continue;
+        }
+        const { currency, sourceId, notes, ...original } = receipt.payload;
+        if (currency !== group.currency)
+          fail(400, "Receipt currency must match the group");
+        const expense = await addExpense(
+          tx,
+          a.group_id,
+          expenseSchema.parse(original),
+          group.owner_id,
+        );
+        await tx.query(
+          "UPDATE receipts SET status='approved',expense_id=$1,reviewed_at=now() WHERE id=$2",
+          [expense.id, id],
+        );
+        results.set(id, {
+          id,
+          status: "approved",
+          expenseId: expense.id,
+          replayed: false,
+        });
+      }
+      return { receipts: data.receiptIds.map((id) => results.get(id)!) };
+    });
   }
   app.get(
     "/api/v1/agent/context",
@@ -1047,6 +1128,18 @@ export function createApp(
     "/api/v1/agent/receipts/:id",
     asyncRoute(async (req, res) => {
       res.json(await agentReceiptStatus(await agent(req), param(req, "id")));
+    }),
+  );
+  app.post(
+    "/api/v1/agent/receipts/drafts",
+    asyncRoute(async (req, res) => {
+      res.json(await agentDrafts(await agent(req), req.body));
+    }),
+  );
+  app.post(
+    "/api/v1/agent/receipts/finalize",
+    asyncRoute(async (req, res) => {
+      res.json(await finalizeAgentReceipts(await agent(req), req.body));
     }),
   );
   const oauth = installOAuth(app, {
@@ -1073,6 +1166,8 @@ export function createApp(
     },
     context: agentContext,
     submit: (a, body) => submitReceipt(a.group_id, body, a.id, null),
+    drafts: agentDrafts,
+    finalize: finalizeAgentReceipts,
     status: agentReceiptStatus,
   });
   installBanking(app, {
