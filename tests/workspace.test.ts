@@ -128,6 +128,7 @@ test("existing real-style sessions preserve identity, history, agent credentials
       assert.deepEqual(r.body.user, {
         id: "existing",
         name: "Existing person",
+        phone_e164: "+12025550121",
       });
       assert.equal(r.body.created, false);
       assert.equal(r.body.token, key);

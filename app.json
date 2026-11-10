@@ -24,7 +24,19 @@
           "photosPermission": "Choose a receipt to share with your group."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          },
+          "android": {
+            "minSdkVersion": 25,
+            "compileSdkVersion": 36
+          }
+        }
+      ]
     ],
     "scheme": "fairshare"
   }

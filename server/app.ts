@@ -3,11 +3,14 @@ import express, {
   type Response,
   type NextFunction,
 } from "express";
+import { installBanking } from "./banking";
+import { configuredBanking, type Banking } from "./bank-provider";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z, ZodError } from "zod";
 import type { Database } from "./db";
 import { hash, token } from "./auth";
+import { normalizePhone } from "./phone";
 import {
   balances,
   simplifyDebts,
@@ -31,7 +34,10 @@ const fail = (status: number, message: string): never => {
 const uid = () => randomUUID();
 const nameSchema = z.string().trim().min(1).max(80);
 const param = (req: Request, name: string) => String(req.params[name]);
-export function createApp(db: Database) {
+export function createApp(
+  db: Database,
+  options: { banking?: Banking | null } = {},
+) {
   const app = express();
   app.disable("x-powered-by");
   // Vercel overwrites X-Forwarded-For; trust its single ingress hop only there.
@@ -254,7 +260,7 @@ export function createApp(db: Database) {
         ).rows[0];
         if (existing) {
           const current = (
-            await db.query("SELECT id,name FROM users WHERE id=$1", [
+            await db.query("SELECT id,name,phone_e164 FROM users WHERE id=$1", [
               existing.user_id,
             ])
           ).rows[0];
@@ -283,15 +289,13 @@ export function createApp(db: Database) {
         );
       });
       saveCookie(res, valueNew);
-      res
-        .status(201)
-        .json({
-          ...(req.headers.origin || req.headers["sec-fetch-mode"]
-            ? {}
-            : { token: valueNew }),
-          user: { id, name },
-          created: true,
-        });
+      res.status(201).json({
+        ...(req.headers.origin || req.headers["sec-fetch-mode"]
+          ? {}
+          : { token: valueNew }),
+        user: { id, name, phone_e164: null },
+        created: true,
+      });
     }),
   );
   app.post(
@@ -306,7 +310,46 @@ export function createApp(db: Database) {
           u.id,
         ]);
       });
-      res.json({ id: u.id, name });
+      res.json(
+        (
+          await db.query("SELECT id,name,phone_e164 FROM users WHERE id=$1", [
+            u.id,
+          ])
+        ).rows[0],
+      );
+    }),
+  );
+  app.post(
+    "/api/me/phone",
+    asyncRoute(async (req, res) => {
+      const u = await user(req);
+      const { phone } = z
+        .object({ phone: z.string().trim().min(1).max(80) })
+        .strict()
+        .parse(req.body);
+      const normalized = normalizePhone(phone);
+      if (!normalized)
+        fail(
+          400,
+          "Enter a valid phone number. Include + and the country code outside the US.",
+        );
+      await limit("phone-entry:" + u.id, 10);
+      try {
+        // The database's UNIQUE constraint arbitrates concurrent claims. The
+        // session owns this row; an entered number never selects another user.
+        const result = await db.query(
+          "UPDATE users SET phone_verified_at=CASE WHEN phone_e164=$1 THEN phone_verified_at ELSE NULL END,phone_e164=$1 WHERE id=$2 RETURNING id,name,phone_e164",
+          [normalized, u.id],
+        );
+        res.json(result.rows[0]);
+      } catch (error) {
+        if ((error as { code?: string }).code === "23505")
+          fail(
+            409,
+            "This number is already associated with another workspace. Use its original device or enter a different number.",
+          );
+        throw error;
+      }
     }),
   );
   app.delete(
@@ -321,7 +364,16 @@ export function createApp(db: Database) {
   );
   app.get(
     "/api/me",
-    asyncRoute(async (req, res) => res.json(await user(req))),
+    asyncRoute(async (req, res) => {
+      const u = await user(req);
+      res.json(
+        (
+          await db.query("SELECT id,name,phone_e164 FROM users WHERE id=$1", [
+            u.id,
+          ])
+        ).rows[0],
+      );
+    }),
   );
   app.get(
     "/api/groups",
@@ -674,6 +726,15 @@ export function createApp(db: Database) {
       res.json(r);
     }),
   );
+  installBanking(app, {
+    db,
+    banking:
+      options.banking === undefined ? configuredBanking() : options.banking,
+    user,
+    limit,
+    route: asyncRoute,
+    addExpense,
+  });
   app.use("/api", (_req, res) =>
     res.status(404).json({ error: "Endpoint not found" }),
   );
