@@ -2,10 +2,12 @@ import type { Express, Request, RequestHandler, Response } from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ZodError } from "zod";
 import { createReceiptMcpServer } from "./mcp-tools";
+import type { agentReceiptManagement } from "./agent-receipts";
 
 type AgentIdentity = { id: string; group_id: string; name: string };
 type Dependencies = {
   challenge?: string;
+  management: ReturnType<typeof agentReceiptManagement>;
   route(fn: (req: Request, res: Response) => Promise<unknown>): RequestHandler;
   authenticate(req: Request): Promise<AgentIdentity>;
   context(agent: AgentIdentity): Promise<unknown>;
@@ -45,19 +47,30 @@ export function installMcp(app: Express, d: Dependencies) {
       const server = createReceiptMcpServer(
         async (path, method = "GET", body) => {
           try {
+            const actions: Record<string, (body: unknown) => Promise<unknown>> =
+              {
+                "/receipts": (body) => d.submit(agent, body),
+                "/receipts/drafts": (body) => d.drafts(agent, body),
+                "/receipts/finalize": (body) => d.finalize(agent, body),
+                "/receipts/list": (body) => d.management.list(agent, body),
+                "/receipts/update": (body) =>
+                  d.management.updateDraft(agent, body),
+                "/receipts/reject": (body) =>
+                  d.management.rejectDraft(agent, body),
+                "/expenses/update": (body) =>
+                  d.management.updateExpense(agent, body),
+                "/expenses/void": (body) =>
+                  d.management.voidExpense(agent, body),
+              };
             const result =
-              path === "/context"
-                ? await d.context(agent)
-                : path === "/receipts" && method === "POST"
-                  ? await d.submit(agent, body)
-                  : path === "/receipts/drafts" && method === "POST"
-                    ? await d.drafts(agent, body)
-                    : path === "/receipts/finalize" && method === "POST"
-                      ? await d.finalize(agent, body)
-                      : await d.status(
-                          agent,
-                          decodeURIComponent(path.slice("/receipts/".length)),
-                        );
+              method === "POST" && actions[path]
+                ? await actions[path](body)
+                : path === "/context"
+                  ? await d.context(agent)
+                  : await d.status(
+                      agent,
+                      decodeURIComponent(path.slice("/receipts/".length)),
+                    );
             return {
               content: [{ type: "text", text: JSON.stringify(result) }],
             };

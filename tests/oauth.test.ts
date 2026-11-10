@@ -373,6 +373,25 @@ test("OAuth code exchange requires exact client, callback, resource and PKCE; ac
       JSON.parse(posted.content[0].text).receipts[0].status,
       "approved",
     );
+    const current = JSON.parse(
+      (
+        await s
+          .mcp(t.access_token, "get_receipt_status", { receiptId: draft.id })
+          .expect(200)
+      ).body.result.content[0].text,
+    ).expense;
+    const edited = (
+      await s
+        .mcp(t.access_token, "update_expense", {
+          expenseId: current.id,
+          expectedRevision: current.revision,
+          userConfirmed: true,
+          changes: { title: "Corrected lunch" },
+        })
+        .expect(200)
+    ).body.result;
+    assert.ok(!edited.isError, JSON.stringify(edited));
+    assert.equal(JSON.parse(edited.content[0].text).title, "Corrected lunch");
     await s.http
       .get("/api/v1/agent/context")
       .set(auth(t.access_token))
@@ -555,7 +574,7 @@ test("official SDK discovers, registers, opens authorization, exchanges PKCE cod
         authProvider: provider,
       }),
     );
-    assert.equal((await client.listTools()).tools.length, 5);
+    assert.equal((await client.listTools()).tools.length, 10);
     const context: any = await client.callTool({
       name: "get_group_context",
       arguments: {},
@@ -568,7 +587,7 @@ test("official SDK discovers, registers, opens authorization, exchanges PKCE cod
     await s.db.query(
       "UPDATE oauth_access_tokens SET expires_at=now()-interval '1 second'",
     );
-    assert.equal((await client.listTools()).tools.length, 5);
+    assert.equal((await client.listTools()).tools.length, 10);
     assert.notEqual(tokens.refresh_token, oldRefresh);
   } finally {
     await client?.close();

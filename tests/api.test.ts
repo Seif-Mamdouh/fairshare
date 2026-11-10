@@ -298,7 +298,7 @@ test("complete API journey, authorization, receipt concurrency, and MCP", async 
       });
       try {
         await client.connect(transport);
-        assert.equal((await client.listTools()).tools.length, 5);
+        assert.equal((await client.listTools()).tools.length, 10);
         const context: any = await client.callTool({
           name: "get_group_context",
           arguments: {},
@@ -321,6 +321,25 @@ test("complete API journey, authorization, receipt concurrency, and MCP", async 
         assert.equal(
           JSON.parse(posted.content[0].text).receipts[0].status,
           "approved",
+        );
+        const current: any = await client.callTool({
+          name: "get_receipt_status",
+          arguments: { receiptId: JSON.parse(result.content[0].text).id },
+        });
+        const savedExpense = JSON.parse(current.content[0].text).expense;
+        const edited: any = await client.callTool({
+          name: "update_expense",
+          arguments: {
+            expenseId: savedExpense.id,
+            expectedRevision: savedExpense.revision,
+            userConfirmed: true,
+            changes: { title: "Corrected via stdio" },
+          },
+        });
+        assert.equal(edited.isError, false);
+        assert.equal(
+          JSON.parse(edited.content[0].text).title,
+          "Corrected via stdio",
         );
       } finally {
         await client.close();

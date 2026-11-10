@@ -759,7 +759,8 @@ export function ExpenseHome({
                     <Text style={h.sectionTitle}>Agent connections</Text>
                     <Text style={[h.small, { marginBottom: 20 }]}>
                       Optional assistants can prepare drafts and post them as
-                      expenses when you ask.
+                      expenses when you ask. They can also correct or void their
+                      own posted expenses and reject unwanted drafts.
                     </Text>
                     {owner && (
                       <Button
