@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   View,
+  Animated,
   Text,
   Pressable,
   ScrollView,
@@ -10,6 +11,7 @@ import {
 } from "react-native";
 import { C, icon, Button } from "./components";
 import { ExpenseCharts, ExpenseSearch } from "./ExpenseInsights";
+import { Brand, Eyebrow, useEntrance, serif } from "./design";
 import { money } from "../shared/domain";
 import {
   expenseImpact,
@@ -116,6 +118,7 @@ export function ExpenseHome({
     if (groupOpen) setNav("Groups");
   }, [groupOpen]);
   const current = groupOpen && group;
+  const entrance = useEntrance(current ? group.id : nav);
   useEffect(() => {
     setSection("Expenses");
   }, [group?.id]);
@@ -202,23 +205,25 @@ export function ExpenseHome({
   );
   return (
     <View style={h.root}>
-      {desktop && (
-        <View style={h.desktopBar}>
-          <Text style={h.brand}>fairshare</Text>
-          <Text style={h.topLabel}>Shared expenses</Text>
-          <Text style={{ marginLeft: "auto", color: C.muted }}>
-            {user.name}
-          </Text>
-        </View>
-      )}
+      <View style={h.desktopBar}>
+        <Brand />
+        {desktop && <Text style={h.topLabel}>Expenses, together.</Text>}
+        <Text
+          numberOfLines={1}
+          style={{ marginLeft: "auto", color: C.muted, flexShrink: 1 }}
+        >
+          {user.name}
+        </Text>
+      </View>
       <View
         style={[
           h.app,
-          desktop && { maxWidth: 1000, alignSelf: "center", width: "100%" },
+          desktop && { maxWidth: 1280, alignSelf: "center", width: "100%" },
         ]}
       >
         {desktop && (
           <View style={h.sidebar}>
+            <Text style={h.navLabel}>YOUR WORKSPACE</Text>
             {navItems.map(navButton)}
             <View style={{ marginTop: 24 }}>
               <Button label="+ Add expense" onPress={addExpense} />
@@ -229,9 +234,12 @@ export function ExpenseHome({
           style={[
             h.main,
             desktop && {
-              borderLeftWidth: 1,
-              borderRightWidth: 1,
+              margin: 24,
+              marginLeft: 0,
+              borderRadius: 24,
+              borderWidth: 1,
               borderColor: C.line,
+              overflow: "hidden",
             },
           ]}
         >
@@ -295,7 +303,8 @@ export function ExpenseHome({
               {error}
             </Text>
           )}
-          <ScrollView
+          <Animated.ScrollView
+            style={entrance}
             contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
             keyboardShouldPersistTaps="handled"
           >
@@ -309,7 +318,7 @@ export function ExpenseHome({
                       {
                         left: "60%",
                         top: 15,
-                        backgroundColor: "#228B7B",
+                        backgroundColor: "#7E9B68",
                         transform: [{ rotate: "-35deg" }],
                       },
                     ]}
@@ -816,6 +825,26 @@ export function ExpenseHome({
               </>
             ) : nav === "Groups" ? (
               <>
+                <View style={[h.welcome, { padding: desktop ? 32 : 24 }]}>
+                  <View style={{ flex: 1, minWidth: 0, gap: 13 }}>
+                    <Eyebrow light>THE GOOD KIND OF SHARED HISTORY</Eyebrow>
+                    <Text
+                      accessibilityRole="header"
+                      style={[h.welcomeTitle, { fontSize: desktop ? 43 : 34 }]}
+                    >
+                      More together.{"\n"}Less to keep track of.
+                    </Text>
+                    <Text style={h.welcomeBody}>
+                      Every trip, every dinner, every little thing. All in one
+                      place.
+                    </Text>
+                  </View>
+                  {desktop && (
+                    <View style={h.welcomeMark}>
+                      <Brand compact inverse />
+                    </View>
+                  )}
+                </View>
                 <View style={h.overall}>
                   <View style={{ flex: 1 }}>
                     {Object.entries(totals).length ? (
@@ -864,13 +893,20 @@ export function ExpenseHome({
                     accessibilityRole="button"
                     accessibilityLabel={`Open ${g.name}`}
                     onPress={() => select(g.id)}
-                    style={h.groupRow}
+                    style={({ pressed }) => [
+                      h.groupRow,
+                      h.groupCard,
+                      pressed && {
+                        backgroundColor: C.pale,
+                        transform: [{ scale: 0.99 }],
+                      },
+                    ]}
                   >
                     <View
                       style={[
                         h.groupListAvatar,
                         {
-                          backgroundColor: ["#397C76", "#7C5164", "#466C87"][
+                          backgroundColor: ["#53774B", "#87715C", "#647B80"][
                             i % 3
                           ],
                         },
@@ -1116,7 +1152,7 @@ export function ExpenseHome({
                 </Text>
               </View>
             )}
-          </ScrollView>
+          </Animated.ScrollView>
           {!desktop && (
             <View style={h.bottomNav}>
               {navItems.slice(0, 2).map(navButton)}
@@ -1137,11 +1173,56 @@ export function ExpenseHome({
   );
 }
 const h = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#FAFBFB" },
+  navLabel: {
+    color: C.muted,
+    fontSize: 9,
+    letterSpacing: 1.5,
+    fontWeight: "700",
+    marginBottom: 24,
+  },
+  welcome: {
+    backgroundColor: C.green,
+    marginHorizontal: 18,
+    marginBottom: 8,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 24,
+  },
+  welcomeTitle: {
+    fontFamily: serif,
+    fontWeight: "400",
+    color: "#FAFCF5",
+    letterSpacing: -0.8,
+  },
+  welcomeBody: {
+    color: "#E0EAD5",
+    lineHeight: 21,
+    fontSize: 13,
+    maxWidth: 340,
+  },
+  welcomeMark: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#5B8050",
+    alignItems: "center",
+    justifyContent: "center",
+    transform: [{ rotate: "-12deg" }],
+  },
+  groupCard: {
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 16,
+    marginHorizontal: 18,
+    marginBottom: 12,
+    backgroundColor: C.paper,
+  },
+  root: { flex: 1, backgroundColor: C.bg },
   app: { flex: 1, flexDirection: "row" },
   desktopBar: {
-    height: 58,
-    backgroundColor: "#fff",
+    minHeight: 92,
+    backgroundColor: C.bg,
     borderBottomWidth: 1,
     borderColor: C.line,
     flexDirection: "row",
@@ -1151,8 +1232,8 @@ const h = StyleSheet.create({
   },
   brand: { fontSize: 25, fontWeight: "700", color: C.green, letterSpacing: -1 },
   topLabel: { color: C.muted, fontSize: 13 },
-  sidebar: { width: 215, padding: 20 },
-  main: { flex: 1, backgroundColor: "white", minWidth: 0 },
+  sidebar: { width: 235, padding: 24, paddingTop: 40 },
+  main: { flex: 1, backgroundColor: C.bg, minWidth: 0 },
   toolbar: {
     height: 72,
     paddingHorizontal: 20,
@@ -1160,13 +1241,19 @@ const h = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  screenName: { fontSize: 24, fontWeight: "600", color: C.ink, flex: 1 },
+  screenName: {
+    fontFamily: serif,
+    fontSize: 28,
+    fontWeight: "400",
+    color: C.ink,
+    flex: 1,
+  },
   textAction: { color: C.green, fontSize: 15, fontWeight: "600" },
   iconButton: { padding: 6 },
   search: {
-    backgroundColor: "#F1F4F3",
+    backgroundColor: C.pale,
     padding: 12,
-    borderRadius: 5,
+    borderRadius: 12,
     fontSize: 16,
   },
   navItem: { flex: 1, alignItems: "center", gap: 5, paddingVertical: 10 },
@@ -1177,11 +1264,11 @@ const h = StyleSheet.create({
     justifyContent: "flex-start",
     gap: 14,
     padding: 13,
-    borderRadius: 5,
+    borderRadius: 12,
     marginBottom: 6,
   },
   bottomNav: {
-    height: 74,
+    minHeight: 80,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderColor: C.line,
@@ -1194,7 +1281,7 @@ const h = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#1CB99A",
+    backgroundColor: C.ink,
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: 8,
@@ -1225,7 +1312,7 @@ const h = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  groupRowTitle: { fontSize: 18, color: C.ink },
+  groupRowTitle: { fontSize: 19, color: C.ink },
   rowTitle: { fontSize: 16, color: C.ink, lineHeight: 23 },
   small: { fontSize: 12, color: C.muted, lineHeight: 18 },
   friendAvatar: {
@@ -1246,7 +1333,12 @@ const h = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  emptyTitle: { fontSize: 21, color: C.ink, textAlign: "center" },
+  emptyTitle: {
+    fontFamily: serif,
+    fontSize: 29,
+    color: C.ink,
+    textAlign: "center",
+  },
   emptyBody: {
     fontSize: 14,
     color: C.muted,
@@ -1254,12 +1346,12 @@ const h = StyleSheet.create({
     lineHeight: 22,
     maxWidth: 300,
   },
-  cover: { height: 120, backgroundColor: "#37766F", overflow: "hidden" },
+  cover: { height: 155, backgroundColor: C.green, overflow: "hidden" },
   coverShape: {
     position: "absolute",
     width: 220,
     height: 220,
-    backgroundColor: "#438F81",
+    backgroundColor: "#5C8251",
     transform: [{ rotate: "40deg" }],
     top: -100,
     left: 40,
@@ -1274,7 +1366,7 @@ const h = StyleSheet.create({
     width: 66,
     height: 66,
     borderRadius: 9,
-    backgroundColor: "#226B62",
+    backgroundColor: C.green,
     borderWidth: 4,
     borderColor: "white",
     marginTop: -35,
@@ -1282,7 +1374,7 @@ const h = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  groupName: { fontSize: 28, color: C.ink, marginBottom: 8 },
+  groupName: { fontFamily: serif, fontSize: 36, color: C.ink, marginBottom: 8 },
   balanceLine: { fontSize: 16, color: C.ink, marginBottom: 5 },
   actions: {
     alignItems: "flex-start",
@@ -1296,7 +1388,7 @@ const h = StyleSheet.create({
     borderWidth: 1,
     borderBottomWidth: 2,
     borderColor: "#E5E7E6",
-    borderRadius: 5,
+    borderRadius: 12,
   },
   month: {
     fontSize: 13,
@@ -1319,12 +1411,13 @@ const h = StyleSheet.create({
     height: 43,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 2,
+    borderRadius: 12,
   },
   expenseBalance: { width: 82, alignItems: "flex-end" },
   section: { padding: 22 },
   sectionTitle: {
-    fontSize: 18,
+    fontFamily: serif,
+    fontSize: 25,
     color: C.ink,
     fontWeight: "600",
     marginBottom: 8,
@@ -1342,7 +1435,7 @@ const h = StyleSheet.create({
   sectionStrip: {
     fontSize: 12,
     color: C.muted,
-    backgroundColor: "#F0F2F2",
+    backgroundColor: C.pale,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },

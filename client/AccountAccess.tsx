@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { Text, View } from "react-native";
+import { serif } from "./design";
 import { api } from "./api";
 import { Button, C, Field } from "./components";
 export function AccountAccess({ user, onSession, onSignOut }: any) {
@@ -50,7 +51,16 @@ export function AccountAccess({ user, onSession, onSignOut }: any) {
   }
   return (
     <View style={{ gap: 14 }}>
-      <Text style={{ fontSize: 24, fontWeight: "700" }}>
+      <Text
+        accessibilityRole="header"
+        style={{
+          fontFamily: serif,
+          color: C.ink,
+          fontSize: 32,
+          fontWeight: "400",
+          letterSpacing: -0.8,
+        }}
+      >
         {manage
           ? "Account sign-in"
           : login
