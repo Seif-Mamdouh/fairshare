@@ -13,6 +13,9 @@ import {
   Image,
   Platform,
 } from "react-native";
+import { WebPolish } from "./client/WebPolish";
+import { Welcome } from "./client/Welcome";
+import { serif } from "./client/design";
 import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
 import { C, icon, Button, Field, Pills, Card, Tag } from "./client/components";
@@ -475,6 +478,7 @@ export default function App() {
   return (
     <SafeAreaView style={s.root}>
       <StatusBar style="dark" />
+      <WebPolish />
       {!user ? (
         <View style={[s.center, { flex: 1, padding: 28, gap: 18 }]}>
           <Text style={s.heading}>Couldn’t open your workspace</Text>
@@ -487,31 +491,11 @@ export default function App() {
           />
         </View>
       ) : !user.sign_in_enabled ? (
-        <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            justifyContent: "center",
-            padding: 24,
-          }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Card
-            style={{
-              maxWidth: 440,
-              width: "100%",
-              alignSelf: "center",
-              gap: 20,
-            }}
-          >
-            {oauthRequest && (
-              <Text style={s.muted}>
-                Sign in to continue connecting your agent. You’ll choose a group
-                and approve access next.
-              </Text>
-            )}
-            <AccountAccess user={user} onSession={acceptSession} />
-          </Card>
-        </ScrollView>
+        <Welcome
+          user={user}
+          onSession={acceptSession}
+          oauthRequest={oauthRequest}
+        />
       ) : oauthRequest ? (
         <OAuthConsent
           key={oauthRequest + user.id}
@@ -1198,8 +1182,9 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   heading: {
-    fontSize: 23,
-    fontWeight: "600",
+    fontSize: 28,
+    fontFamily: serif,
+    fontWeight: "400",
     color: C.ink,
     letterSpacing: -0.5,
   },
@@ -1285,12 +1270,12 @@ const s = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(30,40,40,0.35)",
+    backgroundColor: "rgba(24,35,24,0.30)",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 20,
   },
-  modal: { backgroundColor: C.paper, borderRadius: 8, overflow: "hidden" },
+  modal: { backgroundColor: C.paper, borderRadius: 22, overflow: "hidden" },
   code: {
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     fontSize: 12,

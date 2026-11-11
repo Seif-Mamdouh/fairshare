@@ -1,17 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
-export const C = {
-  bg: "#F7F9F8",
-  paper: "#FFFFFF",
-  ink: "#373B3F",
-  muted: "#858A8E",
-  line: "#E8EAEA",
-  green: "#3C8876",
-  lime: "#D9ED9A",
-  pale: "#E9F6F3",
-  red: "#D65D2A",
-};
+import { palette } from "./design";
+export const C = palette;
 export const icon = (name: any, size = 18, color = C.ink) => (
   <Feather name={name} size={size} color={color} />
 );
@@ -22,17 +13,24 @@ export function Button({
   disabled = false,
   small = false,
 }: any) {
+  const [hovered, setHovered] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       disabled={disabled}
+      accessibilityState={{ disabled: !!disabled }}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         s.button,
         secondary && s.secondary,
         small && { paddingVertical: 10, paddingHorizontal: 14 },
-        (pressed || disabled) && { opacity: 0.6 },
+        hovered &&
+          !disabled && { backgroundColor: secondary ? C.pale : C.green },
+        pressed && { transform: [{ scale: 0.98 }] },
+        disabled && { opacity: 0.45 },
       ]}
     >
       <Text style={[s.buttonText, secondary && { color: C.ink }]}>{label}</Text>
@@ -72,7 +70,7 @@ export function Pills({ items, value, onChange }: any) {
           >
             <Text
               style={{
-                color: value === id ? C.green : C.muted,
+                color: value === id ? C.green : C.ink,
                 fontWeight: value === id ? "600" : "400",
               }}
             >
@@ -106,8 +104,9 @@ export function Tag({ text }: any) {
 
 const s = StyleSheet.create({
   button: {
-    backgroundColor: C.green,
-    borderRadius: 5,
+    backgroundColor: C.ink,
+    minHeight: 48,
+    borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: "center",
@@ -117,19 +116,19 @@ const s = StyleSheet.create({
   buttonText: { fontWeight: "600", fontSize: 13, color: "white" },
   label: { fontSize: 13, fontWeight: "600", color: C.ink },
   input: {
-    minHeight: 46,
+    minHeight: 50,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 5,
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 11,
-    fontSize: 14,
+    fontSize: 16,
     color: C.ink,
-    backgroundColor: "#FDFEFC",
+    backgroundColor: C.bg,
   },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   pill: {
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
@@ -138,16 +137,16 @@ const s = StyleSheet.create({
   },
   card: {
     backgroundColor: C.paper,
-    borderRadius: 5,
+    borderRadius: 12,
     padding: 24,
     borderWidth: 1,
     borderColor: C.line,
   },
   tag: {
-    backgroundColor: "#E9F6F3",
+    backgroundColor: C.pale,
     paddingHorizontal: 9,
     paddingVertical: 6,
-    borderRadius: 5,
+    borderRadius: 12,
     alignSelf: "flex-start",
   },
 });

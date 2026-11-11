@@ -1,3 +1,4 @@
+import { serif } from "./design";
 import React, { useEffect, useRef, useState } from "react";
 import { ScrollView, Text, View, Pressable } from "react-native";
 import { api } from "./api";
@@ -66,7 +67,14 @@ export function OAuthConsent({
         style={{ width: "100%", maxWidth: 560, alignSelf: "center", gap: 18 }}
       >
         <Tag text="FAIRSHARE AUTHORIZATION" />
-        <Text style={{ fontSize: 26, fontWeight: "700", color: C.ink }}>
+        <Text
+          style={{
+            fontFamily: serif,
+            fontSize: 32,
+            fontWeight: "400",
+            color: C.ink,
+          }}
+        >
           Connect your agent
         </Text>
         <Text style={{ color: C.muted }}>Signed in as {user.name}</Text>
