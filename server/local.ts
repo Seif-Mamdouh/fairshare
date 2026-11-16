@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import express from "express";
 import { createApp } from "./app";
 import { localDatabase, postgresDatabase } from "./db";
+import { bankingProblems } from "./bank-provider";
 async function main() {
   const db = process.env.DATABASE_URL
     ? postgresDatabase(process.env.DATABASE_URL)
@@ -30,6 +31,12 @@ async function main() {
     console.log(
       `Fairshare ready at http://localhost:${process.env.PORT || 3001}`,
     ),
+  );
+  const missing = bankingProblems();
+  console.log(
+    missing.length
+      ? `Bank linking is off (optional). To enable Plaid Sandbox set: ${missing.join(", ")}. See docs/BANKING.md.`
+      : `Bank linking is on (Plaid ${process.env.PLAID_ENV}).`,
   );
   const close = () =>
     server.close(() => void db.close().then(() => process.exit(0)));

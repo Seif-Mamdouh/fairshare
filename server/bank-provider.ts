@@ -69,6 +69,25 @@ export interface Banking {
   androidPackage?: string;
   call(path: string, body: Record<string, unknown>): Promise<any>;
 }
+// Names (never values) of the settings that keep bank linking disabled; empty when configured.
+export function bankingProblems(
+  env: Record<string, string | undefined> = process.env,
+): string[] {
+  const problems = ["PLAID_CLIENT_ID", "PLAID_SECRET"].filter((n) => !env[n]);
+  if (!["sandbox", "production"].includes(env.PLAID_ENV || ""))
+    problems.push("PLAID_ENV (sandbox or production)");
+  if (
+    env.PLAID_ENV === "production" &&
+    env.PLAID_LINK_EVENTS_ENABLED !== "true"
+  )
+    problems.push("PLAID_LINK_EVENTS_ENABLED (must be true in production)");
+  try {
+    new BankVault(env.BANK_TOKEN_ENCRYPTION_KEY || "");
+  } catch {
+    problems.push("BANK_TOKEN_ENCRYPTION_KEY (32 random bytes, base64)");
+  }
+  return problems;
+}
 export function configuredBanking(): Banking | null {
   const {
     PLAID_CLIENT_ID: client,
@@ -110,6 +129,11 @@ export function configuredBanking(): Banking | null {
           body: JSON.stringify({ client_id: client, secret, ...body }),
         });
         const data = await result.json();
+        // Sandbox only: name the provider error (never the request) so local setup mistakes are diagnosable.
+        if (!result.ok && environment === "sandbox")
+          console.warn(
+            `Plaid sandbox ${path} failed: ${data.error_type || "UNKNOWN"}/${data.error_code || "PROVIDER_ERROR"}`,
+          );
         if (!result.ok)
           throw new BankError(
             503,
