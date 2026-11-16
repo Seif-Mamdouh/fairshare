@@ -15,6 +15,7 @@ import {
   useUser,
 } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { api } from "./api";
 import { Button, C, Field } from "./components";
 import { serif } from "./design";
@@ -60,6 +61,18 @@ async function must(step: Promise<{ error: unknown }>) {
   if (error) throw error;
 }
 
+/** The same formats the phone form accepts (server/phone.ts), as E.164 for Clerk. */
+function toE164(input: string): string | null {
+  if (input.length > 80 || !/^[+\d\s().-]+$/.test(input)) return null;
+  const phone = parsePhoneNumberFromString(input.trim(), {
+    defaultCountry: "US",
+    extract: false,
+  });
+  return phone?.isValid() && !phone.ext ? phone.number : null;
+}
+/** Sign-up fields this form can collect beyond email and password. */
+const collectable = ["username", "phone_number"];
+
 type Props = {
   onSession: (result: any) => Promise<void>;
   onUsePhone: () => void;
@@ -76,9 +89,16 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
-  const [step, setStep] = useState<"form" | "code">("form");
+  const [step, setStep] = useState<"form" | "details" | "code">("form");
+  // Where the code being asked for was sent.
+  const [channel, setChannel] = useState<"email" | "phone">("email");
+  // Extra fields the Clerk application turned out to require at sign-up. Once
+  // known they are asked for up front, next to email and password.
+  const [needs, setNeeds] = useState<string[]>([]);
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
+    [username, setUsername] = useState(""),
+    [phone, setPhone] = useState(""),
     [code, setCode] = useState("");
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -113,7 +133,9 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
     const token = await clerk.session?.getToken();
     if (!token)
       throw new Error("Your sign-in did not finish. Please try again.");
-    const name = clerk.user?.fullName?.trim().slice(0, 80);
+    const name = (clerk.user?.fullName || clerk.user?.username || "")
+      .trim()
+      .slice(0, 80);
     const result = await api("/auth/clerk", "POST", {
       token,
       ...(name ? { name } : {}),
@@ -123,77 +145,141 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
     setStep("form");
     await onSession(result);
   }
-  // The Clerk application requires fields this form does not collect (for example a
-  // username or phone number). Name them so the owner can make them optional in Clerk.
-  const needsMore = (attempt: { missingFields: string[] }) =>
-    `Sign-up also requires: ${attempt.missingFields
+  // The Clerk application requires a field this form cannot collect. Name it so
+  // the owner can make it optional in Clerk.
+  const needsMore = (fields: string[]) =>
+    `Sign-up also requires: ${fields
       .map((field) => field.replace(/_/g, " "))
-      .join(", ")}. Fairshare only collects email and password.`;
+      .join(
+        ", ",
+      )}. Fairshare only collects email, password, username and phone number.`;
+  /** The values for the extra fields Clerk asked for, validated. */
+  const extras = (fields: string[]) => {
+    const values: { username?: string; phoneNumber?: string } = {};
+    if (fields.includes("username")) {
+      if (!username.trim()) throw new Error("Choose a username.");
+      values.username = username.trim();
+    }
+    if (fields.includes("phone_number")) {
+      const phoneNumber = toE164(phone);
+      if (!phoneNumber)
+        throw new Error(
+          "Enter a valid phone number, including the country code outside the US.",
+        );
+      values.phoneNumber = phoneNumber;
+    }
+    return values;
+  };
+  /**
+   * Moves a sign-up to its next outstanding step, as Clerk reports it: missing
+   * fields first, then each unverified contact, then the session exchange.
+   */
+  async function continueSignUp() {
+    if (signUp.status !== "complete") {
+      const missing: string[] = signUp.missingFields;
+      const unknown = missing.filter((field) => !collectable.includes(field));
+      if (unknown.length) throw new Error(needsMore(unknown));
+      if (missing.length) {
+        setNeeds((known) => [...new Set([...known, ...missing])]);
+        setStep("details");
+        return;
+      }
+      const unverified: string[] = signUp.unverifiedFields;
+      const next = unverified.includes("email_address")
+        ? "email"
+        : unverified.includes("phone_number")
+          ? "phone"
+          : null;
+      if (!next)
+        throw new Error(
+          "This sign-up needs details Fairshare does not collect yet.",
+        );
+      await must(
+        next === "email"
+          ? signUp.verifications.sendEmailCode()
+          : signUp.verifications.sendPhoneCode(),
+      );
+      setChannel(next);
+      setCode("");
+      setStep("code");
+      setNotice(
+        next === "email"
+          ? "We emailed you a verification code."
+          : "We texted you a verification code.",
+      );
+      return;
+    }
+    await must(signUp.finalize());
+    await exchange();
+  }
   const submit = () =>
     run(async () => {
       const emailAddress = email.trim();
       if (creating) {
         if (password.length < 8)
           throw new Error("Use at least 8 characters for your password.");
-        await must(signUp.password({ emailAddress, password }));
-        if (signUp.status !== "complete") {
-          if (signUp.missingFields.length) throw new Error(needsMore(signUp));
-          if (!signUp.unverifiedFields.includes("email_address"))
-            throw new Error(
-              "This sign-up needs details Fairshare does not collect yet.",
-            );
-          await must(signUp.verifications.sendEmailCode());
-          setStep("code");
-          setNotice("We emailed you a verification code.");
-          return;
-        }
-        await must(signUp.finalize());
-      } else {
-        await must(signIn.password({ emailAddress, password }));
-        if (signIn.status !== "complete") {
-          // A new device, or an account with an email second factor.
-          const emailCode =
-            (signIn.status === "needs_client_trust" ||
-              signIn.status === "needs_second_factor") &&
-            signIn.supportedSecondFactors.some(
-              (factor) => factor.strategy === "email_code",
-            );
-          if (!emailCode)
-            throw new Error(
-              "This account needs a sign-in step Fairshare does not support yet.",
-            );
-          await must(signIn.mfa.sendEmailCode());
-          setStep("code");
-          setNotice("We emailed you a verification code.");
-          return;
-        }
-        await must(signIn.finalize());
+        await must(
+          signUp.password({ emailAddress, password, ...extras(needs) }),
+        );
+        await continueSignUp();
+        return;
       }
+      await must(signIn.password({ emailAddress, password }));
+      if (signIn.status !== "complete") {
+        // A new device, or an account with an email second factor.
+        const emailCode =
+          (signIn.status === "needs_client_trust" ||
+            signIn.status === "needs_second_factor") &&
+          signIn.supportedSecondFactors.some(
+            (factor) => factor.strategy === "email_code",
+          );
+        if (!emailCode)
+          throw new Error(
+            "This account needs a sign-in step Fairshare does not support yet.",
+          );
+        await must(signIn.mfa.sendEmailCode());
+        setChannel("email");
+        setStep("code");
+        setNotice("We emailed you a verification code.");
+        return;
+      }
+      await must(signIn.finalize());
       await exchange();
+    });
+  /** Sends the extra details Clerk asked for after the email and password. */
+  const saveDetails = () =>
+    run(async () => {
+      await must(signUp.update(extras(signUp.missingFields)));
+      await continueSignUp();
     });
   const verify = () =>
     run(async () => {
-      const attempt = creating ? signUp : signIn;
-      await must(
-        creating
-          ? signUp.verifications.verifyEmailCode({ code: code.trim() })
-          : signIn.mfa.verifyEmailCode({ code: code.trim() }),
-      );
-      if (attempt.status !== "complete")
-        throw new Error(
-          creating && signUp.missingFields.length
-            ? needsMore(signUp)
-            : "Verification is not complete yet. Check the code and try again.",
+      const value = code.trim();
+      if (creating) {
+        await must(
+          channel === "phone"
+            ? signUp.verifications.verifyPhoneCode({ code: value })
+            : signUp.verifications.verifyEmailCode({ code: value }),
         );
-      await must(attempt.finalize());
+        await continueSignUp();
+        return;
+      }
+      await must(signIn.mfa.verifyEmailCode({ code: value }));
+      if (signIn.status !== "complete")
+        throw new Error(
+          "Verification is not complete yet. Check the code and try again.",
+        );
+      await must(signIn.finalize());
       await exchange();
     });
   const resend = () =>
     run(async () => {
       await must(
-        creating
-          ? signUp.verifications.sendEmailCode()
-          : signIn.mfa.sendEmailCode(),
+        !creating
+          ? signIn.mfa.sendEmailCode()
+          : channel === "phone"
+            ? signUp.verifications.sendPhoneCode()
+            : signUp.verifications.sendEmailCode(),
       );
       setNotice("A new code is on its way.");
     });
@@ -211,10 +297,14 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
     : isSignedIn
       ? "Welcome back"
       : step === "code"
-        ? "Check your email"
-        : creating
-          ? "Create your account"
-          : "Welcome back";
+        ? channel === "phone"
+          ? "Check your phone"
+          : "Check your email"
+        : step === "details"
+          ? "A few more details"
+          : creating
+            ? "Create your account"
+            : "Welcome back";
   const intro = !isLoaded
     ? slow
       ? "Email sign-in is not available right now. Check your connection and reload, or use your phone number and password."
@@ -222,10 +312,57 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
     : isSignedIn
       ? `You’re signed in as ${signedInAs}. Continue to open your groups and expenses.`
       : step === "code"
-        ? `Enter the code we sent to ${email.trim()}.`
-        : creating
-          ? "Use your email to return to the same account from any device. Groups already on this device stay with you."
-          : "Sign in with your email to access your groups and expenses.";
+        ? `Enter the code we sent to ${
+            channel === "phone"
+              ? signUp.phoneNumber || "your phone"
+              : email.trim()
+          }.`
+        : step === "details"
+          ? "One more step to finish creating your account."
+          : creating
+            ? "Use your email to return to the same account from any device. Groups already on this device stay with you."
+            : "Sign in with your email to access your groups and expenses.";
+  const asked = step === "details" ? signUp.missingFields : needs;
+  const onSubmit = step === "details" ? saveDetails : submit;
+  const extraFields = (
+    <>
+      {asked.includes("username") && (
+        <Field
+          label="Username"
+          value={username}
+          onChangeText={setUsername}
+          autoComplete="username"
+          textContentType="username"
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={64}
+          editable={!busy}
+        />
+      )}
+      {asked.includes("phone_number") && (
+        <>
+          <Field
+            label="Phone number"
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="(202) 555-0123"
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            textContentType="telephoneNumber"
+            autoCorrect={false}
+            maxLength={80}
+            editable={!busy}
+            onSubmitEditing={() => void onSubmit()}
+          />
+          <Text style={{ color: C.muted, lineHeight: 21 }}>
+            US numbers can use 10 digits. For other countries, include + and the
+            country code. We’ll text a code to confirm it. If you already use
+            Fairshare with this number, you’ll open that account.
+          </Text>
+        </>
+      )}
+    </>
+  );
   return (
     <View style={{ gap: 14 }}>
       <Text
@@ -288,6 +425,21 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
             onPress={startOver}
           />
         </>
+      ) : step === "details" ? (
+        <>
+          {extraFields}
+          <Button
+            label={busy ? "Please wait…" : "Continue"}
+            disabled={busy}
+            onPress={() => void saveDetails()}
+          />
+          <Button
+            secondary
+            label="Start over"
+            disabled={busy}
+            onPress={startOver}
+          />
+        </>
       ) : (
         <>
           <Field
@@ -316,6 +468,7 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
             editable={!busy}
             onSubmitEditing={() => void submit()}
           />
+          {creating && extraFields}
           {/* Clerk mounts its bot-protection widget here on web sign-ups. */}
           {creating && Platform.OS === "web" && (
             <View nativeID="clerk-captcha" />
