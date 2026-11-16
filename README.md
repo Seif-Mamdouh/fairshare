@@ -99,4 +99,4 @@ No expense-count paywall or subscription is required. Add expense includes recei
 
 ## Clerk sign-in (optional)
 
-Set `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to offer email sign-in through Clerk on web and native. A verified Clerk session is exchanged for the normal Fairshare session, and a device's existing workspace is linked on first sign-in. With the keys unset nothing changes. See [Clerk setup, linking rules and limits](docs/CLERK_AUTH.md).
+Set `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to offer email sign-in through Clerk on web and native. A verified Clerk session is exchanged for the normal Fairshare session, and on first sign-in an existing account with the same Clerk-verified phone number, or else the device's workspace, is linked. With the keys unset nothing changes. See [Clerk setup, linking rules and limits](docs/CLERK_AUTH.md).
