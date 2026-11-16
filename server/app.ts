@@ -9,6 +9,7 @@ import { agentReceiptManagement } from "./agent-receipts";
 import { finalizeReceiptsSchema, listDraftsSchema } from "./mcp-tools";
 import { installOAuth, oauthIssuer, oauthPublicPaths } from "./oauth";
 import { configuredBanking, type Banking } from "./bank-provider";
+import { configuredClerk, type ClerkVerifier } from "./clerk";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z, ZodError } from "zod";
@@ -41,7 +42,12 @@ const nameSchema = z.string().trim().min(1).max(80);
 const param = (req: Request, name: string) => String(req.params[name]);
 export function createApp(
   db: Database,
-  options: { banking?: Banking | null; oauthIssuer?: string } = {},
+  options: {
+    banking?: Banking | null;
+    oauthIssuer?: string;
+    /** Clerk session-token verifier; null disables Clerk sign-in. */
+    clerk?: ClerkVerifier | null;
+  } = {},
 ) {
   const app = express();
   app.disable("x-powered-by");
@@ -276,12 +282,7 @@ export function createApp(
           )
         ).rows[0];
         if (existing) {
-          const current = (
-            await db.query(
-              "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled FROM users WHERE id=$1",
-              [existing.user_id],
-            )
-          ).rows[0];
+          const current = await ownProfile(db, existing.user_id);
           if (current) {
             saveCookie(res, value);
             res.json({
@@ -320,13 +321,19 @@ export function createApp(
     .string()
     .min(12, "Use at least 12 characters for your password.")
     .max(128);
-  const ownProfile = async (tx: Database, id: string) =>
-    (
+  // `clerk_linked` appears only for Clerk-linked users, so profiles of every
+  // other user keep exactly the shape they had before Clerk sign-in existed.
+  const ownProfile = async (tx: Database, id: string) => {
+    const row = (
       await tx.query(
-        "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled FROM users WHERE id=$1",
+        "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled,clerk_user_id IS NOT NULL AS clerk_linked FROM users WHERE id=$1",
         [id],
       )
     ).rows[0];
+    if (!row) return row;
+    const { clerk_linked, ...profile } = row;
+    return clerk_linked ? { ...profile, clerk_linked: true } : profile;
+  };
   const sendSession = (
     req: Request,
     res: Response,
@@ -457,6 +464,130 @@ export function createApp(
       sendSession(req, res, value, profile);
     }),
   );
+  const clerk = options.clerk === undefined ? configuredClerk() : options.clerk;
+  // Exchanges a verified Clerk session token for an ordinary Fairshare session.
+  app.post(
+    "/api/auth/clerk",
+    asyncRoute(async (req, res) => {
+      if (!clerk) fail(404, "Clerk sign-in is not configured on this server.");
+      const data = z
+        .object({
+          token: z.string().min(1).max(8192),
+          name: nameSchema.optional(),
+          currentPassword: z.string().min(1).max(128).optional(),
+        })
+        .strict()
+        .parse(req.body);
+      await limit("clerk-ip:" + req.ip, 30);
+      const identity = await clerk!(data.token).catch(() => null);
+      if (!identity?.userId)
+        fail(
+          401,
+          "Your Clerk sign-in could not be verified. Please sign in again.",
+        );
+      const clerkId = identity!.userId,
+        presented = credential(req),
+        value = token("fs_");
+      if (data.currentPassword) {
+        const holder = (
+          await db.query(
+            "SELECT user_id FROM sessions WHERE token_hash=$1 AND expires_at>now()",
+            [hash(presented)],
+          )
+        ).rows[0];
+        if (holder) await limit("clerk-link-password:" + holder.user_id, 5);
+      }
+      const exchange = () =>
+        db.transaction(async (tx) => {
+          let outcome = "signed_in";
+          // 1. A Clerk identity that is already linked always opens its own user.
+          let id: string | undefined = (
+            await tx.query("SELECT id FROM users WHERE clerk_user_id=$1", [
+              clerkId,
+            ])
+          ).rows[0]?.id;
+          if (!id) {
+            const held = (
+              await tx.query(
+                "SELECT user_id FROM sessions WHERE token_hash=$1 AND expires_at>now()",
+                [hash(presented)],
+              )
+            ).rows[0];
+            const current = held
+              ? (
+                  await tx.query(
+                    "SELECT id,clerk_user_id FROM users WHERE id=$1 FOR UPDATE",
+                    [held.user_id],
+                  )
+                ).rows[0]
+              : null;
+            if (current && !current.clerk_user_id) {
+              // 2. Link this device's workspace so its groups and data are kept.
+              const secret = (
+                await tx.query(
+                  "SELECT password_hash FROM user_credentials WHERE user_id=$1",
+                  [current.id],
+                )
+              ).rows[0];
+              // A session alone must not add a permanent sign-in method to a
+              // password-protected account: prove knowledge of the password.
+              if (
+                secret &&
+                !(await verifyPassword(
+                  data.currentPassword || "",
+                  secret.password_hash,
+                ))
+              )
+                fail(
+                  409,
+                  "This device is signed in to a password-protected account. Sign out first, or enter the current password to connect it.",
+                );
+              await tx.query("UPDATE users SET clerk_user_id=$1 WHERE id=$2", [
+                clerkId,
+                current.id,
+              ]);
+              // Drop every older session: a copy kept by whoever prepared this
+              // workspace must not follow the new owner.
+              await tx.query("DELETE FROM sessions WHERE user_id=$1", [
+                current.id,
+              ]);
+              id = current.id as string;
+              outcome = "linked";
+            } else {
+              // 3. No linkable workspace (none, or it belongs to another Clerk
+              // identity, which is never reassigned): start a new user.
+              id = uid();
+              await tx.query(
+                "INSERT INTO users(id,name,clerk_user_id) VALUES($1,$2,$3)",
+                [id, data.name || "Guest " + id.slice(0, 4), clerkId],
+              );
+              outcome = "created";
+            }
+          }
+          await tx.query("DELETE FROM sessions WHERE token_hash=$1", [
+            hash(presented),
+          ]);
+          await tx.query(
+            "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '365 days')",
+            [hash(value), id],
+          );
+          return { outcome, user: await ownProfile(tx, id!) };
+        });
+      // Two first sign-ins for one Clerk identity can race on the unique
+      // column; the loser retries and signs into the winner's user.
+      const result = await exchange().catch((e) => {
+        if ((e as { code?: string }).code === "23505") return exchange();
+        throw e;
+      });
+      saveCookie(res, value);
+      res.json({
+        ...(req.headers.origin || req.headers["sec-fetch-mode"]
+          ? {}
+          : { token: value }),
+        ...result,
+      });
+    }),
+  );
   app.post(
     "/api/me/password",
     asyncRoute(async (req, res) => {
@@ -509,14 +640,7 @@ export function createApp(
           u.id,
         ]);
       });
-      res.json(
-        (
-          await db.query(
-            "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled FROM users WHERE id=$1",
-            [u.id],
-          )
-        ).rows[0],
-      );
+      res.json(await ownProfile(db, u.id));
     }),
   );
   app.post(
@@ -588,14 +712,7 @@ export function createApp(
     "/api/me",
     asyncRoute(async (req, res) => {
       const u = await user(req);
-      res.json(
-        (
-          await db.query(
-            "SELECT id,name,phone_e164,EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id) AS sign_in_enabled FROM users WHERE id=$1",
-            [u.id],
-          )
-        ).rows[0],
-      );
+      res.json(await ownProfile(db, u.id));
     }),
   );
   app.get(

@@ -6,7 +6,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { AccountAccess } from "./AccountAccess";
+import { SignInPanel } from "./clerk";
 import { Button, C, icon, Pills } from "./components";
 import { Brand, Eyebrow, Reveal, serif } from "./design";
 
@@ -144,7 +144,7 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
                 and approve access next.
               </Text>
             )}
-            <AccountAccess user={user} onSession={onSession} />
+            <SignInPanel user={user} onSession={onSession} />
           </Reveal>
           <Text style={s.formFoot}>Less keeping tabs. More living life.</Text>
         </View>

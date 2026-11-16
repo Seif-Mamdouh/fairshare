@@ -16,6 +16,8 @@
     "preview": "tsx server/local.ts"
   },
   "dependencies": {
+    "@clerk/backend": "^3.29.0",
+    "@clerk/expo": "^4.16.1",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.3",
     "@modelcontextprotocol/sdk": "^1.24.0",
