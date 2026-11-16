@@ -96,3 +96,7 @@ Connect a US bank through Plaid, privately review transactions, and explicitly s
 ## Free expense tools
 
 No expense-count paywall or subscription is required. Add expense includes receipt OCR, itemized splits, currency conversion and saved split defaults. Groups include spending charts and expense search; Workspace searches across groups. See [expense tools and boundaries](docs/EXPENSE_TOOLS.md).
+
+## Clerk sign-in (optional)
+
+Set `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to offer email sign-in through Clerk on web and native. A verified Clerk session is exchanged for the normal Fairshare session, and a device's existing workspace is linked on first sign-in. With the keys unset nothing changes. See [Clerk setup, linking rules and limits](docs/CLERK_AUTH.md).
