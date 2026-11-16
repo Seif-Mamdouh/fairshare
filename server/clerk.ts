@@ -1,4 +1,5 @@
-import { verifyToken } from "@clerk/backend";
+import { createClerkClient, verifyToken } from "@clerk/backend";
+import { normalizePhone } from "./phone";
 
 /** The Clerk identity proven by a session token. */
 export type ClerkIdentity = { userId: string };
@@ -8,6 +9,17 @@ export type ClerkIdentity = { userId: string };
  * Injected through createApp options so tests never contact Clerk.
  */
 export type ClerkVerifier = (token: string) => Promise<ClerkIdentity | null>;
+/**
+ * What Clerk knows about a user beyond the token: the phone numbers Clerk has
+ * VERIFIED (E.164, primary first) and a display name, if any.
+ */
+export type ClerkProfile = { phones: string[]; name?: string };
+/**
+ * Looks a Clerk user up through Clerk's Backend API. It rejects when Clerk
+ * cannot be reached, so the caller can refuse to guess which account to open.
+ * Injected through createApp options so tests never contact Clerk.
+ */
+export type ClerkProfileLookup = (userId: string) => Promise<ClerkProfile>;
 
 type Env = Record<string, string | undefined>;
 const list = (value?: string) =>
@@ -59,6 +71,61 @@ export function configuredClerk(env: Env = process.env): ClerkVerifier | null {
         (e as { reason?: string }).reason || (e as Error).message,
       );
       return null;
+    }
+  };
+}
+
+/** Only numbers Clerk verified count, canonicalised the way Fairshare stores them. */
+export function verifiedClerkPhones(user: {
+  primaryPhoneNumberId?: string | null;
+  phoneNumbers?: {
+    id: string;
+    phoneNumber: string;
+    verification: { status: string } | null;
+  }[];
+}): string[] {
+  const phones = (user.phoneNumbers || [])
+    .filter((phone) => phone.verification?.status === "verified")
+    .sort(
+      (a, b) =>
+        Number(b.id === user.primaryPhoneNumberId) -
+        Number(a.id === user.primaryPhoneNumberId),
+    )
+    .map((phone) => normalizePhone(phone.phoneNumber))
+    .filter((phone): phone is string => !!phone);
+  return [...new Set(phones)];
+}
+
+/** Reads a user's verified phones and name from Clerk's Backend API. */
+export function configuredClerkProfile(
+  env: Env = process.env,
+  timeoutMs = 8000,
+): ClerkProfileLookup | null {
+  const secretKey = env.CLERK_SECRET_KEY;
+  if (!secretKey) return null;
+  const client = createClerkClient({ secretKey });
+  return async (userId) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const user = await Promise.race([
+        client.users.getUser(userId),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("Clerk user lookup timed out")),
+            timeoutMs,
+          );
+        }),
+      ]);
+      const name = (user.username || user.firstName || "").trim().slice(0, 80);
+      return { phones: verifiedClerkPhones(user), ...(name ? { name } : {}) };
+    } catch (e) {
+      console.warn(
+        "Clerk user lookup failed:",
+        (e as { status?: number }).status || (e as Error).message,
+      );
+      throw e;
+    } finally {
+      clearTimeout(timer);
     }
   };
 }

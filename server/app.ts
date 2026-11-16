@@ -9,7 +9,13 @@ import { agentReceiptManagement } from "./agent-receipts";
 import { finalizeReceiptsSchema, listDraftsSchema } from "./mcp-tools";
 import { installOAuth, oauthIssuer, oauthPublicPaths } from "./oauth";
 import { configuredBanking, type Banking } from "./bank-provider";
-import { configuredClerk, type ClerkVerifier } from "./clerk";
+import {
+  configuredClerk,
+  configuredClerkProfile,
+  type ClerkProfile,
+  type ClerkProfileLookup,
+  type ClerkVerifier,
+} from "./clerk";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z, ZodError } from "zod";
@@ -47,6 +53,12 @@ export function createApp(
     oauthIssuer?: string;
     /** Clerk session-token verifier; null disables Clerk sign-in. */
     clerk?: ClerkVerifier | null;
+    /**
+     * Looks up a Clerk user's verified phones and name. Defaults to Clerk's
+     * Backend API when `clerk` is also defaulted; with an injected verifier and
+     * no lookup, Clerk users are treated as having no verified phone.
+     */
+    clerkProfile?: ClerkProfileLookup | null;
   } = {},
 ) {
   const app = express();
@@ -465,6 +477,12 @@ export function createApp(
     }),
   );
   const clerk = options.clerk === undefined ? configuredClerk() : options.clerk;
+  const clerkProfile =
+    options.clerkProfile !== undefined
+      ? options.clerkProfile
+      : options.clerk === undefined
+        ? configuredClerkProfile()
+        : null;
   // Exchanges a verified Clerk session token for an ordinary Fairshare session.
   app.post(
     "/api/auth/clerk",
@@ -488,6 +506,34 @@ export function createApp(
       const clerkId = identity!.userId,
         presented = credential(req),
         value = token("fs_");
+      // Only a Clerk identity Fairshare has not seen before costs a Backend API
+      // call. If that call fails nothing may be created or linked: a fresh user
+      // would bind this Clerk identity to the wrong account for good.
+      const unavailable = () =>
+        fail(
+          503,
+          "We could not reach the sign-in service to finish setting up your account. Please try again in a moment.",
+        );
+      let profile: ClerkProfile | null = null;
+      if (
+        !(
+          await db.query("SELECT 1 FROM users WHERE clerk_user_id=$1", [
+            clerkId,
+          ])
+        ).rows.length
+      )
+        profile = clerkProfile
+          ? await clerkProfile(clerkId).catch(unavailable)
+          : { phones: [] };
+      // Both sides are compared in Fairshare's canonical E.164 form.
+      const phones = [
+        ...new Set(
+          (profile?.phones || [])
+            .map((phone) => normalizePhone(String(phone)))
+            .filter((phone): phone is string => !!phone),
+        ),
+      ];
+      const clerkName = nameSchema.safeParse(profile?.name);
       if (data.currentPassword) {
         const holder = (
           await db.query(
@@ -506,6 +552,38 @@ export function createApp(
               clerkId,
             ])
           ).rows[0]?.id;
+          // The link vanished after the check above, so Clerk was never asked.
+          if (!id && !profile) unavailable();
+          let freePhone: string | null = null;
+          if (!id) {
+            // 2. A phone number Clerk verified opens the unlinked Fairshare user
+            // that holds it, from any device and without the Fairshare password.
+            for (const phone of phones) {
+              const holder = (
+                await tx.query(
+                  "SELECT id,clerk_user_id FROM users WHERE phone_e164=$1 FOR UPDATE",
+                  [phone],
+                )
+              ).rows[0];
+              if (!holder) freePhone ||= phone;
+              // A holder linked to another Clerk identity is never reassigned.
+              else if (!holder.clerk_user_id && !id) id = holder.id as string;
+            }
+            if (id) {
+              await tx.query(
+                "UPDATE users SET clerk_user_id=$1,phone_verified_at=now() WHERE id=$2",
+                [clerkId, id],
+              );
+              // Fairshare never verified that number itself, so whoever typed it
+              // in first may not be its owner. Every way in that predates this
+              // proof of ownership is closed: all sessions and the password.
+              await tx.query("DELETE FROM sessions WHERE user_id=$1", [id]);
+              await tx.query("DELETE FROM user_credentials WHERE user_id=$1", [
+                id,
+              ]);
+              outcome = "linked";
+            }
+          }
           if (!id) {
             const held = (
               await tx.query(
@@ -522,7 +600,7 @@ export function createApp(
                 ).rows[0]
               : null;
             if (current && !current.clerk_user_id) {
-              // 2. Link this device's workspace so its groups and data are kept.
+              // 3. Link this device's workspace so its groups and data are kept.
               const secret = (
                 await tx.query(
                   "SELECT password_hash FROM user_credentials WHERE user_id=$1",
@@ -554,12 +632,21 @@ export function createApp(
               id = current.id as string;
               outcome = "linked";
             } else {
-              // 3. No linkable workspace (none, or it belongs to another Clerk
-              // identity, which is never reassigned): start a new user.
+              // 4. No linkable user (none, or it belongs to another Clerk
+              // identity, which is never reassigned): start a new one. It takes
+              // a verified phone nobody holds, so that number stays unique and
+              // a later phone sign-up cannot claim it.
               id = uid();
               await tx.query(
-                "INSERT INTO users(id,name,clerk_user_id) VALUES($1,$2,$3)",
-                [id, data.name || "Guest " + id.slice(0, 4), clerkId],
+                "INSERT INTO users(id,name,clerk_user_id,phone_e164,phone_verified_at) VALUES($1,$2,$3,$4::text,CASE WHEN $4::text IS NULL THEN NULL ELSE now() END)",
+                [
+                  id,
+                  data.name ||
+                    (clerkName.success && clerkName.data) ||
+                    "Guest " + id.slice(0, 4),
+                  clerkId,
+                  freePhone,
+                ],
               );
               outcome = "created";
             }
@@ -573,8 +660,8 @@ export function createApp(
           );
           return { outcome, user: await ownProfile(tx, id!) };
         });
-      // Two first sign-ins for one Clerk identity can race on the unique
-      // column; the loser retries and signs into the winner's user.
+      // Two first sign-ins can race on the unique Clerk id or phone number;
+      // the loser retries and resolves against the winner's row.
       const result = await exchange().catch((e) => {
         if ((e as { code?: string }).code === "23505") return exchange();
         throw e;
