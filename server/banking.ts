@@ -104,7 +104,8 @@ export function installBanking(app: Express, d: Dependencies) {
         configured: !!b,
         environment: b?.environment || null,
         platforms: {
-          web: !!b?.webRedirect,
+          // Sandbox web Link works without a redirect URI (OAuth test banks open in a pop-up).
+          web: !!b && (!!b.webRedirect || b.environment === "sandbox"),
           ios: !!b?.iosRedirect,
           android: !!b?.androidPackage,
         },
@@ -128,7 +129,13 @@ export function installBanking(app: Express, d: Dependencies) {
       await limit("bank-link:" + u.id, 6);
       const redirect =
         data.platform === "ios" ? provider.iosRedirect : provider.webRedirect;
-      if (data.platform === "android" ? !provider.androidPackage : !redirect)
+      const redirectOptional =
+        data.platform === "web" && provider.environment === "sandbox";
+      if (
+        data.platform === "android"
+          ? !provider.androidPackage
+          : !redirect && !redirectOptional
+      )
         deny(503, "Bank linking is not configured for this platform yet.");
       const result = await provider.call("/link/token/create", {
         user: { client_user_id: u.id },
@@ -143,7 +150,9 @@ export function installBanking(app: Express, d: Dependencies) {
         },
         ...(data.platform === "android"
           ? { android_package_name: provider.androidPackage }
-          : { redirect_uri: redirect }),
+          : redirect
+            ? { redirect_uri: redirect }
+            : {}),
       });
       if (!result.link_token || !result.expiration)
         deny(503, "The bank provider did not create a Link session.");

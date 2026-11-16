@@ -13,6 +13,7 @@
     "test": "tsx --test tests/*.test.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "mcp": "tsx scripts/mcp.ts",
+    "bank:sandbox-check": "tsx scripts/bank-sandbox-check.ts",
     "preview": "tsx server/local.ts"
   },
   "dependencies": {

@@ -6,7 +6,13 @@ import { readFile } from "node:fs/promises";
 import request from "supertest";
 import { localDatabase } from "../server/db";
 import { createApp } from "../server/app";
-import { BankVault, BankError, type Banking } from "../server/bank-provider";
+import {
+  BankVault,
+  BankError,
+  bankingProblems,
+  type Banking,
+} from "../server/bank-provider";
+import { preflight, sandboxCheck } from "../scripts/bank-sandbox-check";
 const auth = (token: string) => ({ Authorization: "Bearer " + token });
 const account = {
   account_id: "account-private",
@@ -593,4 +599,153 @@ test("sandbox callback exchange needs an owned session; production still require
   } finally {
     await s.db.close();
   }
+});
+test("sandbox web Link works without a redirect URI; production and iOS still require one", async () => {
+  const x = await setup();
+  try {
+    const start = (platform: string) =>
+      x.http
+        .post("/api/bank/link-token")
+        .set(auth(x.owner.token))
+        .send({ platform, consent: true });
+    const platforms = async () =>
+      (await x.http.get("/api/bank").set(auth(x.owner.token)).expect(200)).body
+        .platforms;
+    await start("web").expect(200);
+    assert.equal(
+      x.calls.at(-1)!.body.redirect_uri,
+      "https://fairshare.example/",
+    );
+    x.banking.webRedirect = "";
+    x.banking.iosRedirect = undefined;
+    assert.deepEqual(await platforms(), {
+      web: true,
+      ios: false,
+      android: true,
+    });
+    await start("web").expect(200);
+    assert.equal(x.calls.at(-1)!.path, "/link/token/create");
+    assert.ok(!("redirect_uri" in x.calls.at(-1)!.body));
+    assert.ok(!("android_package_name" in x.calls.at(-1)!.body));
+    const before = x.calls.length;
+    await start("ios").expect(503);
+    x.banking.environment = "production";
+    assert.equal((await platforms()).web, false);
+    await start("web").expect(503);
+    assert.equal(x.calls.length, before);
+  } finally {
+    await x.db.close();
+  }
+});
+test("bank configuration problems are named without values", () => {
+  const key = randomBytes(32).toString("base64");
+  const env = {
+    PLAID_ENV: "sandbox",
+    PLAID_CLIENT_ID: "client-value",
+    PLAID_SECRET: "secret-value",
+    BANK_TOKEN_ENCRYPTION_KEY: key,
+  };
+  assert.deepEqual(bankingProblems(env), []);
+  assert.deepEqual(
+    bankingProblems({}).map((p) => p.split(" ")[0]),
+    [
+      "PLAID_CLIENT_ID",
+      "PLAID_SECRET",
+      "PLAID_ENV",
+      "BANK_TOKEN_ENCRYPTION_KEY",
+    ],
+  );
+  const bad = bankingProblems({
+    ...env,
+    PLAID_ENV: "production",
+    BANK_TOKEN_ENCRYPTION_KEY: "short-secret-key",
+  }).join(" ");
+  assert.match(bad, /PLAID_LINK_EVENTS_ENABLED/);
+  assert.match(bad, /BANK_TOKEN_ENCRYPTION_KEY/);
+  assert.ok(!bad.includes("short-secret-key"));
+});
+test("sandbox check skips without credentials and refuses outside sandbox", () => {
+  const keys = {
+    PLAID_CLIENT_ID: "client-value",
+    PLAID_SECRET: "secret-value",
+  };
+  const skipped = preflight({});
+  assert.equal(skipped.action, "skip");
+  assert.match(skipped.message, /skipped: set PLAID_CLIENT_ID \/ PLAID_SECRET/);
+  assert.equal(preflight({ PLAID_ENV: "sandbox" }).action, "skip");
+  assert.equal(preflight({ PLAID_ENV: "sandbox", ...keys }).action, "run");
+  assert.equal(preflight(keys).action, "refuse");
+  assert.equal(preflight({ PLAID_ENV: "production" }).action, "refuse");
+  const refused = preflight({ PLAID_ENV: "production", ...keys });
+  assert.equal(refused.action, "refuse");
+  assert.ok(!refused.message.includes("secret-value"));
+});
+test("sandbox check drives link, exchange, sync, import and disconnect through the API without printing tokens", async () => {
+  const x = await setup();
+  await x.db.close();
+  x.banking.verifyLinkEvents = true;
+  x.banking.webRedirect = undefined;
+  let syncs = 0;
+  x.mock.sync = async () =>
+    ++syncs === 1
+      ? page({ accounts: [], next_cursor: "" })
+      : page({
+          added: [
+            transaction(),
+            transaction({ transaction_id: "pending-1", pending: true }),
+          ],
+        });
+  const base = x.banking.call;
+  const banking: Banking = {
+    ...x.banking,
+    call: async (path, body) => {
+      if (path !== "/sandbox/public_token/create") return base(path, body);
+      x.calls.push({ path, body });
+      return { public_token: "public-sandbox-check-token" };
+    },
+  };
+  const lines: string[] = [];
+  const result = await sandboxCheck(banking, {
+    log: (l) => lines.push(l),
+    delayMs: 0,
+  });
+  assert.deepEqual(result, {
+    pass: 7,
+    accounts: 1,
+    transactions: 2,
+    imported: 1,
+    syncs: 2,
+  });
+  assert.deepEqual(
+    x.calls.map((c) => c.path),
+    [
+      "/link/token/create",
+      "/sandbox/public_token/create",
+      "/item/public_token/exchange",
+      "/transactions/sync",
+      "/transactions/sync",
+      "/item/remove",
+    ],
+  );
+  assert.deepEqual(x.calls[1].body, {
+    institution_id: "ins_109508",
+    initial_products: ["transactions"],
+  });
+  assert.doesNotMatch(
+    lines.join("\n"),
+    /public-sandbox|link-test|access-|1234/,
+  );
+  // A step failure is reported by name and still removes the Sandbox Item.
+  x.mock.sync = async () => {
+    throw new BankError(503, "provider detail", "INTERNAL_SERVER_ERROR");
+  };
+  await assert.rejects(
+    sandboxCheck(banking, { log: () => {}, delayMs: 0 }),
+    /sync: HTTP 503/,
+  );
+  assert.equal(x.calls.at(-1)!.path, "/item/remove");
+  await assert.rejects(
+    sandboxCheck({ ...banking, environment: "production" }, { log: () => {} }),
+    /not in sandbox mode/,
+  );
 });
