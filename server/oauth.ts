@@ -279,7 +279,7 @@ export function installOAuth(app: Express, d: Dependencies) {
     if (
       !(
         await db.query(
-          "SELECT user_id FROM user_credentials WHERE user_id=$1",
+          "SELECT id FROM users WHERE id=$1 AND (clerk_user_id IS NOT NULL OR EXISTS(SELECT 1 FROM user_credentials c WHERE c.user_id=users.id))",
           [u.id],
         )
       ).rows.length
