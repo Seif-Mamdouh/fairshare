@@ -123,6 +123,12 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
     setStep("form");
     await onSession(result);
   }
+  // The Clerk application requires fields this form does not collect (for example a
+  // username or phone number). Name them so the owner can make them optional in Clerk.
+  const needsMore = (attempt: { missingFields: string[] }) =>
+    `Sign-up also requires: ${attempt.missingFields
+      .map((field) => field.replace(/_/g, " "))
+      .join(", ")}. Fairshare only collects email and password.`;
   const submit = () =>
     run(async () => {
       const emailAddress = email.trim();
@@ -131,6 +137,7 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
           throw new Error("Use at least 8 characters for your password.");
         await must(signUp.password({ emailAddress, password }));
         if (signUp.status !== "complete") {
+          if (signUp.missingFields.length) throw new Error(needsMore(signUp));
           if (!signUp.unverifiedFields.includes("email_address"))
             throw new Error(
               "This sign-up needs details Fairshare does not collect yet.",
@@ -174,7 +181,9 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
       );
       if (attempt.status !== "complete")
         throw new Error(
-          "Verification is not complete yet. Check the code and try again.",
+          creating && signUp.missingFields.length
+            ? needsMore(signUp)
+            : "Verification is not complete yet. Check the code and try again.",
         );
       await must(attempt.finalize());
       await exchange();
