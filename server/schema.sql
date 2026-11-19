@@ -44,3 +44,5 @@ CREATE TABLE IF NOT EXISTS oauth_access_tokens (token_hash text PRIMARY KEY, gra
 CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (token_hash text PRIMARY KEY, grant_id text NOT NULL REFERENCES oauth_grants(id), expires_at timestamptz NOT NULL, consumed_at timestamptz);
 CREATE INDEX IF NOT EXISTS oauth_access_grant_idx ON oauth_access_tokens(grant_id);
 CREATE INDEX IF NOT EXISTS oauth_refresh_grant_idx ON oauth_refresh_tokens(grant_id);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_user_id text UNIQUE;

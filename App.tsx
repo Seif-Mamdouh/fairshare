@@ -27,6 +27,7 @@ import { ExpenseEditor } from "./client/ExpenseEditor";
 import { AgentSetup } from "./client/AgentSetup";
 import { PhoneEntry } from "./client/PhoneEntry";
 import { AccountAccess } from "./client/AccountAccess";
+import { ClerkGate, clerkSignOut } from "./client/clerk";
 import { OAuthConsent } from "./client/OAuthConsent";
 import { OAuthSetup } from "./client/OAuthSetup";
 import {
@@ -61,6 +62,13 @@ const today = () => {
   ].join("-");
 };
 export default function App() {
+  return (
+    <ClerkGate>
+      <Main />
+    </ClerkGate>
+  );
+}
+function Main() {
   const { width } = useWindowDimensions();
   const wide = width >= 1000;
   const [user, setUser] = useState<any>(null),
@@ -215,6 +223,7 @@ export default function App() {
     await run(async () => {
       await api("/workspace/session", "DELETE");
       await clearSession();
+      await clerkSignOut();
       setUser(null);
       setGroups([]);
       setSummaries([]);
@@ -262,7 +271,10 @@ export default function App() {
     const sub = Linking.addEventListener("url", (event) => receive(event.url));
     const hashChange = () => {
       receive(window.location.href);
-      setOAuthRequest(readOAuthRequest());
+      // Clerk's card keeps its own steps in the hash as `#/step`; those are
+      // not the end of an agent connection request.
+      if (!window.location.hash.startsWith("#/"))
+        setOAuthRequest(readOAuthRequest());
     };
     if (Platform.OS === "web")
       window.addEventListener("hashchange", hashChange);
@@ -490,7 +502,7 @@ export default function App() {
             onPress={() => void initializeWorkspace()}
           />
         </View>
-      ) : !user.sign_in_enabled ? (
+      ) : !user.sign_in_enabled && !user.clerk_linked ? (
         <Welcome
           user={user}
           onSession={acceptSession}
@@ -575,6 +587,7 @@ export default function App() {
           onSelect={selectGroup}
           onBack={() => setGroupOpen(false)}
           onOpen={open}
+          onSignOut={() => void signOut()}
           onReview={review}
           notice={notice}
           error={!modal ? error : ""}
@@ -805,14 +818,28 @@ export default function App() {
                   </Text>
                   <PhoneEntry
                     value={user.phone_e164}
-                    requiresPassword
+                    requiresPassword={!!user.sign_in_enabled}
                     onSaved={setUser}
                   />
-                  <AccountAccess
-                    user={user}
-                    onSession={acceptSession}
-                    onSignOut={signOut}
-                  />
+                  {user.sign_in_enabled ? (
+                    <AccountAccess
+                      user={user}
+                      onSession={acceptSession}
+                      onSignOut={signOut}
+                    />
+                  ) : (
+                    <View style={{ gap: 12 }}>
+                      <Text style={[s.muted, { lineHeight: 22 }]}>
+                        You sign in to this account with your email.
+                      </Text>
+                      <Button
+                        secondary
+                        label="Sign out on this device"
+                        disabled={busy}
+                        onPress={() => void signOut()}
+                      />
+                    </View>
+                  )}
                 </View>
               )}
               {modal === "Join a group" && (
