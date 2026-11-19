@@ -83,6 +83,7 @@ export function ExpenseHome({
   onSelect,
   onBack,
   onOpen,
+  onSignOut,
   onReview,
   onCopyInvite,
   onShareInvite,
@@ -1136,6 +1137,15 @@ export function ExpenseHome({
                   </Text>
                   {icon("chevron-right", 18)}
                 </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign out"
+                  onPress={onSignOut}
+                  style={[h.settingRow, { paddingHorizontal: 20 }]}
+                >
+                  {icon("log-out", 22)}
+                  <Text style={{ flex: 1, fontSize: 16 }}>Sign out</Text>
+                </Pressable>
                 <Text
                   style={{
                     padding: 20,
@@ -1144,8 +1154,9 @@ export function ExpenseHome({
                     lineHeight: 21,
                   }}
                 >
-                  Sign in with your phone number and password to access the same
-                  private account from any device.
+                  {user.clerk_linked
+                    ? "Sign in the same way on any device to access this private account."
+                    : "Sign in with your phone number and password to access the same private account from any device."}
                 </Text>
                 <Text style={{ padding: 20, color: C.muted, fontSize: 12 }}>
                   Fairshare · shared expenses for your people

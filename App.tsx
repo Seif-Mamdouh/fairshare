@@ -584,6 +584,7 @@ function Main() {
           onSelect={selectGroup}
           onBack={() => setGroupOpen(false)}
           onOpen={open}
+          onSignOut={() => void signOut()}
           onReview={review}
           notice={notice}
           error={!modal ? error : ""}
