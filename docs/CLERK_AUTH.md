@@ -6,11 +6,15 @@ Clerk is an optional sign-in method for web and native. It is off until both key
 
 Clerk only proves who the person is. Fairshare still issues its own session.
 
-1. The client signs the person in with Clerk. Sign-in is email + password, with an emailed code on a new device. Sign-up collects email and password, then whatever else the Clerk application requires out of username and phone number, and completes each outstanding verification (emailed code, then texted code).
+1. The client signs the person in with Clerk.
+   - **Web** shows Clerk's own prebuilt card (`<SignIn />` / `<SignUp />` from `@clerk/expo/web`). Everything in the card is Clerk's: the social buttons enabled in the Clerk application, the fields it requires at sign-up, verification codes, password reset and second factors. See [Web sign-in card](#web-sign-in-card).
+   - **iOS and Android** show a form built in this app on Clerk's headless hooks, because the prebuilt components only run in a browser. Sign-in is email + password, with an emailed code on a new device. Sign-up collects email and password, then whatever else the Clerk application requires out of username and phone number, and completes each outstanding verification (emailed code, then texted code).
 2. The client sends the short-lived Clerk session token to `POST /api/auth/clerk` as `{ "token": "..." }`.
 3. The server verifies the token with `@clerk/backend` (`verifyToken`). For a Clerk id it has not seen before it also reads that user's verified phone numbers and username from Clerk's Backend API (`users.getUser`). It then finds, links or creates the Fairshare user and issues the normal Fairshare session: the HttpOnly `fairshare_session` cookie on web, a bearer token stored in SecureStore on native.
 
 Group authorization, bank data, agent keys and MCP OAuth all keep using that Fairshare session. The only downstream change is that MCP OAuth consent accepts a Clerk-linked user as signed in, where it previously required a password credential.
+
+On web step 2 needs no tap: whenever Clerk reports a session and the browser has no signed-in Fairshare account, the exchange runs by itself. That covers a sign-in or sign-up that just finished in the card, the page reload that ends a Google sign-in, and a returning visitor whose Clerk session outlived the Fairshare one. If the exchange fails (for example the 503 described under Guards, or a rejected token) the page shows the reason with **Try again** and **Sign out**. It tries automatically once per Clerk session and never loops.
 
 The response is `{ user, outcome, token? }`. `outcome` is `signed_in`, `linked` or `created`. `user.clerk_linked` is `true` for linked users and absent for everyone else, so existing profiles are unchanged. The Clerk user id is stored in the nullable unique column `users.clerk_user_id` and is never returned by the API.
 
@@ -44,12 +48,34 @@ Group agent keys and MCP grants are kept, as for rule 3. They are group-scoped a
 
 The assumption this rests on: every verified phone on a Clerk user was proven by an SMS code to the person signing in. That holds for self-service sign-up on a **production** Clerk instance with phone verification on. It does not hold for a number an administrator adds as verified through the Clerk dashboard or Backend API, so treat write access to the Clerk instance as write access to Fairshare accounts. It also does not hold on a **development** instance, which accepts fictional numbers of the form `+1 XXX 555-01XX` with the fixed code `424242` and sends no SMS (and `+clerk_test` emails likewise). Those numbers cannot belong to real people, but never point a server holding real user data at a development instance's keys.
 
+## Web sign-in card
+
+`client/ClerkAuth.web.tsx` is the web build of the sign-in surface; Metro picks it over `client/ClerkAuth.tsx` (the native form) by file extension, so neither platform bundles the other's code.
+
+- **Routing.** The app has no router. The cards use Clerk's hash routing for their own steps (`#/factor-one`, `#/verify-email-address`, `#/sso-callback`, …) and the query parameter `?auth=sign-up` says which card is showing. The card's own “Sign up” / “Sign in” links switch between the two. `ClerkProvider` gets `routerPush` / `routerReplace` functions that use the History API, so switching cards and finishing a sign-in do not reload the page. After the exchange the address is back to the plain page URL.
+- **Agent connection requests.** The MCP consent flow puts its request in the hash (`#oauth=…`). It is read before the card mounts and kept in memory while the card rewrites the hash, so email sign-in inside an agent connection still ends on the consent screen. A Google sign-in reloads the page and loses it: the person lands in the app and restarts the connection from their agent.
+- **Appearance.** Only Clerk's `appearance` prop is used: the primary colour and text colour from `client/design.tsx`, a 10px radius, the system font, and full width inside the sign-in column. Layout, copy, the “Secured by Clerk” footer and the development-mode badge are Clerk's.
+- **Phone and password.** “Use phone number and password instead” under the card opens the existing phone form; “Use email or a social account instead” goes back.
+- **Loading.** Clerk's script and then the card's code are fetched from Clerk at runtime, so the card appears a moment after the page. If Clerk has not loaded after 8 seconds the page says so and still offers the phone form.
+
+### What to configure in Clerk for the card
+
+- **Development instance** (`pk_test_` / `sk_test_`): nothing extra. It accepts any `localhost` origin, and social connections such as Google use Clerk's shared development credentials. Google returns to the page it started from (`http://localhost:8081/#/sso-callback`), which the card handles.
+- **Production instance** (`pk_live_` / `sk_live_`):
+  - Clerk production instances need a domain you own, with the DNS records Clerk lists under **Domains**; they do not run on a `*.vercel.app` address. The app must be served from that domain (or a subdomain of it).
+  - Each social connection needs its own credentials. For Google: create an OAuth client in Google Cloud, paste its client ID and secret into the Google connection under **SSO connections**, and add the **Authorized redirect URI** Clerk shows there to the Google client. Shared credentials are development-only.
+  - The exact production origin must still be in `ALLOWED_ORIGINS` or `CLERK_AUTHORIZED_PARTIES` on the server (see below), or the exchange answers 401 after a successful Clerk sign-in.
+- **Required sign-up fields** can be anything the card supports; it asks for them itself, including after a first Google sign-in (Clerk shows a “continue” step for a missing username or phone number). Keep **Phone number** required and verified at sign-up if existing phone + password users should land in their accounts (linking rule 2).
+- If Clerk's **bot protection** is on, the card renders its own challenge; nothing is needed in the app.
+
+Not verified here: the Google round trip was not clicked through (it needs a real Google account), so the return from Google, the “continue” step for a new Google user and the production settings above are described from Clerk's behaviour, not from a run. In development the browser console also prints `Clerk: expo-web-browser not available, OAuth/SSO on web will not work`. That message comes from `@clerk/expo` looking for the optional `expo-web-browser` package, which its popup-based native-style flows use; the card's full-page redirect does not use it. If Google sign-in fails after the redirect, installing it (`npx expo install expo-web-browser`) is the first thing to try.
+
 ## Setup
 
 ### Clerk dashboard
 
 1. Create an application at [dashboard.clerk.com](https://dashboard.clerk.com).
-2. **User & authentication**: enable **Email**, require it at sign-up, and verify with an **email verification code**. Enable **Password**. To let existing phone + password users reach their accounts (linking rule 2), enable **Phone number**, require it at sign-up and turn on **Verify at sign-up** with an **SMS verification code**; without a verified phone, a Clerk sign-up always creates a new Fairshare user. **Username** may be required or off. The in-app form collects email, password, username and phone number and nothing else: leave first/last name and any legal-consent requirement off, or sign-up stops with an error naming the field. Production SMS needs the destination countries enabled under Clerk's SMS settings.
+2. **User & authentication**: enable **Email**, require it at sign-up, and verify with an **email verification code**. Enable **Password**. To let existing phone + password users reach their accounts (linking rule 2), enable **Phone number**, require it at sign-up and turn on **Verify at sign-up** with an **SMS verification code**; without a verified phone, a Clerk sign-up always creates a new Fairshare user. **Username** may be required or off. The native form collects email, password, username and phone number and nothing else: leave first/last name and any legal-consent requirement off, or sign-up on iOS/Android stops with an error naming the field. The web card has no such limit. Social connections (for example Google) appear in the web card as soon as they are enabled; see [What to configure in Clerk for the card](#what-to-configure-in-clerk-for-the-card). Production SMS needs the destination countries enabled under Clerk's SMS settings.
 3. For iOS/Android, make sure the **Native API** is enabled on the **Native applications** page.
 4. Copy the **Publishable key** and **Secret key** from **API keys**.
 5. For a production instance, add your domain as Clerk asks and use the `pk_live_` / `sk_live_` keys.
@@ -67,11 +93,13 @@ Locally, add the two keys to `.env` and restart both processes. Expo inlines `EX
 
 On Vercel, add `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to the project's environment variables, make sure `ALLOWED_ORIGINS` (or `CLERK_AUTHORIZED_PARTIES`) contains the exact production origin, run `npm run db:migrate` once against the production database to add `users.clerk_user_id`, and redeploy. The publishable key must be present at build time; the secret key must never use the `EXPO_PUBLIC_` prefix.
 
-Native builds read the publishable key at bundle time too and need `EXPO_PUBLIC_API_URL`. The custom email flow needs no config plugin and runs in Expo Go.
+Native builds read the publishable key at bundle time too and need `EXPO_PUBLIC_API_URL`. The native email form needs no config plugin and runs in Expo Go.
 
 ## Sign-out
 
-Signing out revokes the Fairshare session on the server, clears the stored native token, and ends the Clerk session on the device. If Clerk cannot be reached, the Fairshare sign-out still completes; the sign-in panel then shows “Continue” for the remembered Clerk account and never signs back in without a tap.
+**Sign out** is a row in the Workspace tab (and “Sign out on this device” under **Display name & workspace**). It revokes the Fairshare session on the server, clears the stored native token, and ends the Clerk session on the device. On web the page then shows the Clerk card again without reloading.
+
+If Clerk cannot be reached, the Fairshare sign-out still completes. The sign-in panel then shows “Continue” for the remembered Clerk account and never signs back in without a tap; on web this is remembered for the browser tab (`sessionStorage`), which is what stops the automatic exchange from undoing the sign-out.
 
 ## Packages and compatibility
 
@@ -79,12 +107,15 @@ Signing out revokes the Fairshare session on the server, clears the stored nativ
 - Server: `@clerk/backend` 3.x.
 - Clerk's packages declare a React peer range of `~19.1.4`, while Expo 54 pins React 19.1.0, which React Native 0.81 requires exactly. npm installs with a peer warning. React is deliberately not bumped.
 - On web, `@clerk/expo` loads Clerk's browser script at runtime from your Clerk Frontend API host. A content security policy or network filter must allow that host.
+- On web, the prebuilt card comes from `@clerk/expo/web`, which re-exports `@clerk/react`'s components; their code is also fetched from Clerk at runtime.
 - The Clerk code is a separate lazily loaded web chunk, fetched only when the publishable key is set.
 
 ## Limits
 
-- Sign-in is email + password only. Social sign-in, passkeys, SMS sign-in or second factors, authenticator-app MFA and Clerk organizations are not wired up; an account that requires one of them gets a clear error. Password reset happens in Clerk, not in this app.
-- A sign-up interrupted by a reload starts again from email and password.
+- On iOS and Android, sign-in is email + password only. Social sign-in, passkeys, SMS sign-in or second factors, authenticator-app MFA and Clerk organizations are not wired up there; an account that requires one of them gets a clear error, and password reset is not offered. The web card supports whatever the Clerk application has enabled.
+- On native, a sign-up interrupted by a reload starts again from email and password.
+- A Google sign-in started from an agent connection request loses the request (see [Web sign-in card](#web-sign-in-card)).
+- A Clerk sign-up on a browser that already holds an unclaimed workspace links that workspace (rule 3) unless the verified phone matches an account (rule 2). The workspace keeps its “Guest …” name and does not take on the Clerk username or phone.
 - The phone link runs only on the first exchange of a Clerk id. A phone added or changed in Clerk later does not link or update anything, and a workspace linked through its session (rule 3) does not take on the Clerk phone.
 - A Fairshare session issued by the exchange lasts a year and is independent of the Clerk session. Revoking a session or deleting a user in Clerk does not end existing Fairshare sessions; it only stops new exchanges.
 - A password-protected Fairshare account whose phone is not on the Clerk user can only be linked through the API with `currentPassword`; the app has no screen for it.
@@ -92,4 +123,4 @@ Signing out revokes the Fairshare session on the server, clears the stored nativ
 - Linking keeps the workspace's existing group agent keys and MCP grants. They are group-scoped and visible in group settings.
 - Accounts are not merged. A person who signed up with Clerk before their phone was on the Clerk user, and used phone + password elsewhere, has two Fairshare users.
 - Clerk-only users have no Fairshare password, so the Workspace screen shows a sign-out button in place of password management.
-- Tests inject a fake verifier and a fake user lookup through `createApp(db, { clerk, clerkProfile })`, so the server rules are covered without Clerk. The Clerk-hosted steps (the username/phone and SMS-code sign-up steps, real token verification, the Backend API lookup, native token cache) have not been run end to end against a live Clerk instance. To do so on a development instance: create a phone + password account with a `555-01XX` number and a group, sign out, sign up with Clerk using a `+clerk_test` email and the same number (both codes are `424242`), and check the group is still there.
+- Tests inject a fake verifier and a fake user lookup through `createApp(db, { clerk, clerkProfile })`, so the server rules are covered without Clerk. The web card has been run in a browser against a development instance: sign-up with username, phone and both codes, sign-in, sign-out, reload, the automatic exchange for a live Clerk session, and a failed exchange with retry and sign-out. Not run: Google or any other social sign-in, and the native form and token cache on a device. To check phone linking on a development instance: create a phone + password account with a `555-01XX` number and a group, sign out, sign up with Clerk using a `+clerk_test` email and the same number (both codes are `424242`), and check the group is still there.
