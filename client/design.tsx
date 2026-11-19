@@ -22,6 +22,15 @@ export const palette = {
   pale: "#EDF3E8",
   red: "#B54B30",
 };
+/** Web loads Funnel Display / Funnel Sans (see WebPolish); native uses the system face. */
+export const display = Platform.select({
+  web: "'Funnel Display', 'Helvetica Neue', Arial, sans-serif",
+  default: undefined,
+});
+export const sans = Platform.select({
+  web: "'Funnel Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  default: undefined,
+});
 export const serif = Platform.select({
   ios: "Georgia",
   android: "serif",
@@ -96,27 +105,27 @@ export function Reveal({
 export function Brand({
   compact = false,
   inverse = false,
+  tone,
 }: {
   compact?: boolean;
   inverse?: boolean;
+  tone?: string;
 }) {
-  const color = inverse ? "#F4FAED" : palette.green;
+  const color = tone || (inverse ? "#F4FAED" : palette.green);
   return (
     <View
       accessibilityLabel="Fairshare"
       style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
     >
-      <View
-        accessible={false}
-        style={{ width: 30, height: 30, transform: [{ rotate: "-12deg" }] }}
-      >
+      <View accessible={false} style={{ width: 26, height: 28 }}>
         <View
-          style={[styles.share, { backgroundColor: color, left: 0, top: 0 }]}
+          style={[styles.half, styles.left, { backgroundColor: color, top: 0 }]}
         />
         <View
           style={[
-            styles.share,
-            { backgroundColor: color, right: 0, bottom: 0, opacity: 0.6 },
+            styles.half,
+            styles.right,
+            { backgroundColor: color, top: 4, opacity: 0.55 },
           ]}
         />
       </View>
@@ -124,10 +133,10 @@ export function Brand({
         <Text
           style={{
             color,
-            fontSize: 30,
-            fontWeight: "800",
-            letterSpacing: -1.8,
-            fontStyle: "italic",
+            fontFamily: display,
+            fontSize: 27,
+            fontWeight: "700",
+            letterSpacing: -1.1,
           }}
         >
           fairshare
@@ -159,5 +168,7 @@ export function Eyebrow({
 }
 
 const styles = StyleSheet.create({
-  share: { position: "absolute", width: 20, height: 20, borderRadius: 6 },
+  half: { position: "absolute", width: 12, height: 24 },
+  left: { left: 0, borderTopLeftRadius: 12, borderBottomLeftRadius: 12 },
+  right: { left: 14, borderTopRightRadius: 12, borderBottomRightRadius: 12 },
 });
