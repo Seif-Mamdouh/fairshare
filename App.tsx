@@ -271,7 +271,10 @@ function Main() {
     const sub = Linking.addEventListener("url", (event) => receive(event.url));
     const hashChange = () => {
       receive(window.location.href);
-      setOAuthRequest(readOAuthRequest());
+      // Clerk's card keeps its own steps in the hash as `#/step`; those are
+      // not the end of an agent connection request.
+      if (!window.location.hash.startsWith("#/"))
+        setOAuthRequest(readOAuthRequest());
     };
     if (Platform.OS === "web")
       window.addEventListener("hashchange", hashChange);

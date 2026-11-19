@@ -1,10 +1,10 @@
 /**
  * Optional Clerk sign-in. This file never imports the Clerk SDK directly: with
  * EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY unset every export is a pass-through and
- * `client/ClerkAuth.tsx` is never loaded. See docs/CLERK_AUTH.md.
+ * `client/ClerkAuth.tsx` / `ClerkAuth.web.tsx` is never loaded. See docs/CLERK_AUTH.md.
  */
 import React, { Suspense, lazy, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { AccountAccess } from "./AccountAccess";
 import { Button, C } from "./components";
 
@@ -18,6 +18,11 @@ if (publishableKey && !clerkEnabled)
     "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is not a Clerk publishable key; Clerk sign-in is off.",
   );
 
+/** On web the sign-in surface is Clerk's own card, which brings its own frame. */
+export const clerkCard = clerkEnabled && Platform.OS === "web";
+
+// Metro resolves this to `ClerkAuth.web.tsx` (Clerk's prebuilt cards) on web
+// and to `ClerkAuth.tsx` (the hand-built form) on iOS and Android.
 const load = () => import("./ClerkAuth");
 const Root = lazy(() => load().then((m) => ({ default: m.ClerkRoot })));
 const Access = lazy(() => load().then((m) => ({ default: m.ClerkAccess })));
@@ -45,9 +50,17 @@ export async function clerkSignOut() {
   } catch {}
 }
 
-/** The sign-in surface: email through Clerk when configured, phone and password otherwise. */
-export function SignInPanel({ user, onSession }: any) {
+/**
+ * The sign-in surface: Clerk when configured (its prebuilt card on web, the
+ * email form on native), phone and password otherwise. `onCard` reports
+ * whether Clerk's own card is showing, so the page can drop its own frame.
+ */
+export function SignInPanel({ user, onSession, onCard }: any) {
   const [phone, setPhone] = useState(false);
+  const show = (usePhone: boolean) => {
+    setPhone(usePhone);
+    onCard?.(clerkCard && !usePhone);
+  };
   if (!clerkEnabled) return <AccountAccess user={user} onSession={onSession} />;
   if (phone)
     return (
@@ -55,14 +68,18 @@ export function SignInPanel({ user, onSession }: any) {
         <AccountAccess user={user} onSession={onSession} />
         <Button
           secondary
-          label="Use email instead"
-          onPress={() => setPhone(false)}
+          label={
+            clerkCard
+              ? "Use email or a social account instead"
+              : "Use email instead"
+          }
+          onPress={() => show(false)}
         />
       </View>
     );
   return (
     <Suspense fallback={<ActivityIndicator color={C.green} />}>
-      <Access onSession={onSession} onUsePhone={() => setPhone(true)} />
+      <Access onSession={onSession} onUsePhone={() => show(true)} />
     </Suspense>
   );
 }

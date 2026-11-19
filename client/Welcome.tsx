@@ -6,7 +6,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { SignInPanel } from "./clerk";
+import { SignInPanel, clerkCard } from "./clerk";
 import { Button, C, icon, Pills } from "./components";
 import { Brand, Eyebrow, Reveal, serif } from "./design";
 
@@ -17,6 +17,8 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
   const scroll = useRef<ScrollView>(null);
   const formY = useRef(0);
   const [demo, setDemo] = useState("Your people");
+  // Clerk's card has its own border and padding; ours would double them.
+  const [card, setCard] = useState(clerkCard);
   return (
     <ScrollView
       ref={scroll}
@@ -136,15 +138,15 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
             alignSelf: desktop ? "flex-start" : "center",
           }}
         >
-          <Reveal delay={180} style={s.form}>
-            <Eyebrow>YOUR PEOPLE. ALL IN ONE PLACE.</Eyebrow>
+          <Reveal delay={180} style={card ? s.bare : s.form}>
+            {!card && <Eyebrow>YOUR PEOPLE. ALL IN ONE PLACE.</Eyebrow>}
             {!!oauthRequest && (
               <Text style={s.oauth}>
                 Sign in to continue connecting your agent. You’ll choose a group
                 and approve access next.
               </Text>
             )}
-            <SignInPanel user={user} onSession={onSession} />
+            <SignInPanel user={user} onSession={onSession} onCard={setCard} />
           </Reveal>
           <Text style={s.formFoot}>Less keeping tabs. More living life.</Text>
         </View>
@@ -290,6 +292,7 @@ const s = StyleSheet.create({
     gap: 26,
     boxShadow: "0 16px 48px rgba(34,57,27,0.04)",
   },
+  bare: { gap: 18 },
   formFoot: {
     color: C.muted,
     textAlign: "center",

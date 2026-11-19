@@ -1,7 +1,9 @@
 /**
- * Everything that imports the Clerk SDK lives in this file. It is loaded lazily
- * by `client/clerk.tsx`, and only when a publishable key is configured, so an
- * app without Clerk never evaluates the SDK or its polyfills.
+ * The iOS and Android build of the Clerk sign-in surface: a form built on
+ * Clerk's headless hooks. Web uses `ClerkAuth.web.tsx` (Clerk's prebuilt cards)
+ * instead. Only these two files import the Clerk SDK. They are loaded lazily by
+ * `client/clerk.tsx`, and only when a publishable key is configured, so an app
+ * without Clerk never evaluates the SDK or its polyfills.
  */
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Text, View } from "react-native";
