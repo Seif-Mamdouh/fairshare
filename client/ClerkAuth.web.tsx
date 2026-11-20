@@ -5,13 +5,13 @@
  * is loaded lazily by `client/clerk.tsx`, and only when a key is configured.
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { ClerkProvider, useAuth, useClerk, useUser } from "@clerk/expo";
 import { SignIn, SignUp } from "@clerk/expo/web";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { api } from "./api";
 import { Button, C } from "./components";
-import { palette } from "./design";
+import { display, palette, sans } from "./design";
 
 /**
  * The app has no router, so the cards use hash routing for their own steps
@@ -78,19 +78,84 @@ const kept = {
   },
 };
 
-/** Fits the card to the page. Layout, copy and behaviour stay Clerk's. */
+/** Fits the card to the page: flat, bordered, in the page's type. Behaviour stays Clerk's. */
+const line = "#DCDFD4";
+// Previews the card as a production Clerk instance renders it (no development
+// notice). Off unless set, so a development instance still says what it is.
+const preview = process.env.EXPO_PUBLIC_CLERK_PREVIEW_PRODUCTION === "1";
 const appearance = {
+  options: { unsafe_disableDevelopmentModeWarnings: preview },
   variables: {
     colorPrimary: palette.green,
     colorForeground: palette.ink,
     colorDanger: palette.red,
     borderRadius: "10px",
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    fontFamily: sans,
+    fontSize: "15px",
+    spacing: "0.9rem",
   },
   elements: {
     rootBox: { width: "100%" },
-    cardBox: { width: "100%", maxWidth: "100%" },
+    cardBox: {
+      width: "100%",
+      maxWidth: "100%",
+      boxShadow: "none",
+      border: "none",
+      borderRadius: "0",
+    },
+    card: {
+      boxShadow: "none",
+      borderRadius: "0",
+      padding: "26px 32px 22px",
+      gap: "22px",
+    },
+    headerTitle: {
+      fontFamily: display,
+      fontSize: "24px",
+      fontWeight: 600,
+      letterSpacing: "-0.4px",
+    },
+    header: { textAlign: "left", alignItems: "flex-start" },
+    headerSubtitle: { fontSize: "15px", color: "#4E564E" },
+    socialButtonsBlockButton: {
+      boxShadow: "none",
+      border: `1px solid ${line}`,
+      height: "44px",
+    },
+    formFieldInput: {
+      boxShadow: "none",
+      border: `1px solid ${line}`,
+      height: "44px",
+    },
+    formButtonPrimary: {
+      boxShadow: "none",
+      backgroundImage: "none",
+      backgroundColor: palette.green,
+      height: "44px",
+      fontSize: "15px",
+      fontWeight: 600,
+      "&:hover": { backgroundColor: "#365A34" },
+      "&::after": { display: "none" },
+    },
+    buttonArrowIcon: { display: "none" },
+    formFieldAction__identifier: { display: "none" },
+    // The footer's layout (one quiet line) is set in WebPolish.
+    footerActionText: { fontSize: "14px" },
+    footerActionLink: { fontSize: "14px", fontWeight: 600 },
+  },
+};
+const localization = {
+  signIn: {
+    start: {
+      title: "Sign in",
+      subtitle: "Open your tabs and pick up where you left off.",
+    },
+  },
+  signUp: {
+    start: {
+      title: "Create your account",
+      subtitle: "Free, and it takes about a minute.",
+    },
   },
 };
 
@@ -106,6 +171,7 @@ export function ClerkRoot({
       publishableKey={publishableKey}
       tokenCache={tokenCache}
       appearance={appearance}
+      localization={localization}
       routerPush={routerPush}
       routerReplace={routerReplace}
     >
@@ -142,14 +208,7 @@ const messageOf = (error: unknown) => {
 };
 
 /** Frames the states that have no Clerk card around them. */
-const panel = {
-  gap: 14,
-  padding: 28,
-  borderRadius: 22,
-  borderWidth: 1,
-  borderColor: C.line,
-  backgroundColor: C.paper,
-};
+const panel = { gap: 14, padding: 28 };
 
 type Props = {
   onSession: (result: any) => Promise<void>;
@@ -238,12 +297,22 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
   }, [isLoaded, isSignedIn, sessionId, manual, exchange]);
 
   const phoneLink = (
-    <Button
-      secondary
-      label="Use phone number and password instead"
+    <Pressable
+      accessibilityRole="button"
       disabled={busy}
       onPress={onUsePhone}
-    />
+      style={{
+        paddingHorizontal: 32,
+        paddingBottom: 22,
+      }}
+    >
+      <Text style={{ fontFamily: sans, fontSize: 14, color: "#4E564E" }}>
+        Joined with a phone number?{" "}
+        <Text style={{ color: C.green, fontWeight: "600" }}>
+          Sign in with it
+        </Text>
+      </Text>
+    </Pressable>
   );
   if (!isLoaded)
     return (
@@ -313,7 +382,7 @@ export function ClerkAccess({ onSession, onUsePhone }: Props) {
   const signInUrl = cardUrl("sign-in");
   const signUpUrl = cardUrl("sign-up");
   return (
-    <View style={{ gap: 14 }}>
+    <View>
       {mode === "sign-up" ? (
         <SignUp
           fallback={loading}

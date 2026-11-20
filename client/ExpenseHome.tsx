@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { C, icon, Button } from "./components";
 import { ExpenseCharts, ExpenseSearch } from "./ExpenseInsights";
-import { Brand, Eyebrow, useEntrance, serif } from "./design";
+import { Brand, useEntrance, serif, mono, display, sans } from "./design";
 import { money } from "../shared/domain";
 import {
   expenseImpact,
@@ -27,7 +27,104 @@ const categoryIcons: Record<string, string> = {
   Shopping: "gift",
   Other: "file-text",
 };
-const colors = ["#DEF0E5", "#E8DFF2", "#F7E4D8", "#DFE9F3", "#F1DCE3"];
+// Neutral tiles: colour is reserved for money and for the one thing to look at.
+const colors = ["#ECE8DB", "#E4E0D2", "#ECE8DB", "#E4E0D2", "#ECE8DB"];
+// A group's mark: its initial, set like a ledger tab.
+const monogram = (name: string) => (name.trim()[0] || "?").toUpperCase();
+function Tile({ group, size = 48 }: any) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: C.pale,
+        borderWidth: 1,
+        borderColor: C.rule,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: display,
+          fontSize: size * 0.46,
+          fontWeight: "500",
+          color: C.ink,
+        }}
+      >
+        {monogram(group.name)}
+      </Text>
+    </View>
+  );
+}
+/** Every amount in the app: tabular figures of the text face; green when it is owed to you. */
+function Figure({ minor, currency, size = 18, signed = false, tone }: any) {
+  const colour = tone || (signed && minor > 0 ? C.green : C.ink);
+  const big = size >= 28;
+  return (
+    <Text
+      style={{
+        fontFamily: big ? display : sans,
+        fontSize: size,
+        lineHeight: Math.round(size * 1.2),
+        fontWeight: big ? "500" : "600",
+        letterSpacing: big ? -size * 0.02 : 0,
+        color: colour,
+        fontVariant: ["tabular-nums"],
+      }}
+    >
+      {signed && minor > 0 ? "+" : signed && minor < 0 ? "−" : ""}
+      {money(Math.abs(minor), currency)}
+    </Text>
+  );
+}
+/** A person: always a disc, so people and groups (squares) never look alike. */
+function Person({ name, size = 28 }: any) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: C.pale,
+        borderWidth: 1,
+        borderColor: C.rule,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={{ fontSize: size * 0.43, fontWeight: "600", color: C.ink }}>
+        {(name || "?")[0].toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+/** The logo's split disc, filled to the part of an expense that is yours. */
+function Share({ part, size = 18 }: any) {
+  const pct = Math.max(0, Math.min(1, part || 0)) * 100;
+  return (
+    <View
+      style={
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: C.line,
+          backgroundImage: `conic-gradient(${C.green} ${pct}%, ${C.line} 0)`,
+        } as any
+      }
+    />
+  );
+}
+const listNames = (names: string[]) =>
+  !names.length
+    ? "Just you so far"
+    : names.length === 1
+      ? "With " + names[0]
+      : "With " +
+        names.slice(0, -1).join(", ") +
+        " and " +
+        names[names.length - 1];
 function IconButton({ name, label, onPress, color = C.ink }: any) {
   return (
     <Pressable
@@ -43,25 +140,17 @@ function IconButton({ name, label, onPress, color = C.ink }: any) {
 function Balance({ amount, currency, large = false }: any) {
   return (
     <View style={{ alignItems: "flex-end" }}>
-      <Text
-        style={{
-          fontSize: 12,
-          color: amount > 0 ? C.green : amount < 0 ? C.red : C.muted,
-        }}
-      >
+      {amount !== 0 && (
+        <Figure
+          minor={Math.abs(amount)}
+          currency={currency}
+          size={large ? 28 : 19}
+          tone={amount > 0 ? C.green : C.ink}
+        />
+      )}
+      <Text style={{ fontSize: 13, color: C.muted, marginTop: 1 }}>
         {amount > 0 ? "you are owed" : amount < 0 ? "you owe" : "settled up"}
       </Text>
-      {amount !== 0 && (
-        <Text
-          style={{
-            fontSize: large ? 24 : 18,
-            color: amount > 0 ? C.green : C.red,
-            marginTop: 2,
-          }}
-        >
-          {money(Math.abs(amount), currency)}
-        </Text>
-      )}
     </View>
   );
 }
@@ -156,6 +245,7 @@ export function ExpenseHome({
         item: e,
         g,
         date: e.voided_at || e.created_at,
+        when: e.spent_on,
       })),
       ...g.settlements.map((item: any) => ({
         kind: "payment",
@@ -169,10 +259,10 @@ export function ExpenseHome({
         new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
   const navItems = [
-    ["Friends", "users"],
     ["Groups", "grid"],
+    ["Friends", "users"],
     ["Activity", "activity"],
-    ["Workspace", "user"],
+    ["Workspace", "user", "Account"],
   ];
   const navButton = (item: string[]) => (
     <Pressable
@@ -184,21 +274,73 @@ export function ExpenseHome({
       style={[
         h.navItem,
         desktop && h.sideNavItem,
-        nav === item[0] && desktop && { backgroundColor: C.pale },
+        nav === item[0] && desktop && { borderColor: C.ink },
       ]}
     >
-      {icon(item[1], desktop ? 21 : 24, nav === item[0] ? C.ink : "#93999B")}
+      {!desktop && icon(item[1], 24, nav === item[0] ? C.ink : C.muted)}
       <Text
         style={{
           fontSize: desktop ? 15 : 10,
-          color: nav === item[0] ? C.ink : "#93999B",
+          color: nav === item[0] ? C.ink : C.muted,
           fontWeight: nav === item[0] ? "600" : "400",
         }}
       >
-        {item[0]}
+        {item[2] || item[0]}
       </Text>
     </Pressable>
   );
+  const active = (value: string) =>
+    section === value ||
+    (value === "Members" && ["Receipts", "Agents"].includes(section));
+  const gutter = desktop ? Math.max(32, (width - 940) / 2 + 32) : 20;
+  const balancesPanel = current ? (
+    <View style={h.slip}>
+      <Text style={[h.railTitle, { borderColor: C.ink }]}>To settle up</Text>
+      {!group.transfers.length ? (
+        <Text style={[h.small, { paddingVertical: 14, color: C.ink }]}>
+          Nobody owes anything.
+        </Text>
+      ) : (
+        group.transfers.map((t: any, i: number) => (
+          <View
+            key={i}
+            style={[h.railRow, { borderColor: "rgba(24,27,24,0.2)" }]}
+          >
+            <Text style={[h.rowTitle, { flex: 1 }]} numberOfLines={1}>
+              {t.from === mine(group)
+                ? "You owe " + memberName(t.to)
+                : t.to === mine(group)
+                  ? memberName(t.from) + " owes you"
+                  : memberName(t.from) + " owes " + memberName(t.to)}
+            </Text>
+            <Figure
+              minor={t.amountMinor}
+              currency={group.currency}
+              size={17}
+              tone={C.ink}
+            />
+            <Button
+              small
+              label="Mark paid"
+              accessibilityLabel={`Record payment from ${memberName(t.from)} to ${memberName(t.to)}`}
+              onPress={() =>
+                onOpen("Record payment", {
+                  from: t.from,
+                  to: t.to,
+                  amount: (t.amountMinor / 100).toFixed(2),
+                })
+              }
+            />
+          </View>
+        ))
+      )}
+      {!!group.transfers.length && (
+        <Text style={[h.small, { marginTop: 14, color: C.ink }]}>
+          Pay each other however you like, then record it here.
+        </Text>
+      )}
+    </View>
+  ) : null;
   const groupRows = groups.filter(
     (g: any) =>
       g.name.toLowerCase().includes(search.toLowerCase()) &&
@@ -207,78 +349,150 @@ export function ExpenseHome({
   return (
     <View style={h.root}>
       <View style={h.desktopBar}>
-        <Brand />
-        {desktop && <Text style={h.topLabel}>Expenses, together.</Text>}
-        <Text
-          numberOfLines={1}
-          style={{ marginLeft: "auto", color: C.muted, flexShrink: 1 }}
-        >
-          {user.name}
-        </Text>
-      </View>
-      <View
-        style={[
-          h.app,
-          desktop && { maxWidth: 1280, alignSelf: "center", width: "100%" },
-        ]}
-      >
-        {desktop && (
-          <View style={h.sidebar}>
-            <Text style={h.navLabel}>YOUR WORKSPACE</Text>
-            {navItems.map(navButton)}
-            <View style={{ marginTop: 24 }}>
-              <Button label="+ Add expense" onPress={addExpense} />
-            </View>
-          </View>
-        )}
-        <View
-          style={[
-            h.main,
-            desktop && {
-              margin: 24,
-              marginLeft: 0,
-              borderRadius: 24,
-              borderWidth: 1,
-              borderColor: C.line,
-              overflow: "hidden",
-            },
-          ]}
-        >
-          {!current && (
-            <View style={h.toolbar}>
-              <IconButton
-                name="search"
-                label="Search"
-                onPress={() => setSearching(!searching)}
-              />
-              <Text style={h.screenName}>
-                {nav === "Activity" ? "Recent activity" : nav}
-              </Text>
-              {nav === "Groups" ? (
+        <View style={[h.barInner, desktop && h.barInnerWide]}>
+          <Brand inverse />
+          {desktop && (
+            <View style={{ flexDirection: "row", gap: 28, marginLeft: 36 }}>
+              {navItems.map((item) => (
                 <Pressable
-                  accessibilityRole="button"
-                  onPress={() => onOpen("New group")}
+                  key={item[0]}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: nav === item[0] }}
+                  accessibilityLabel={item[0]}
+                  onPress={() => navigate(item[0])}
+                  style={[h.topNav, nav === item[0] && { borderColor: C.pink }]}
                 >
-                  <Text style={h.textAction}>Create group</Text>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "500",
+                      color: nav === item[0] ? C.bg : "#B4C4AE",
+                    }}
+                  >
+                    {item[2] || item[0]}
+                  </Text>
                 </Pressable>
+              ))}
+            </View>
+          )}
+          <View style={{ flex: 1 }} />
+          {desktop && (
+            <Button small accent label="Add expense" onPress={addExpense} />
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Your account"
+            onPress={() => navigate("Workspace")}
+            style={h.userChip}
+          >
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: 15, color: C.bg, flexShrink: 1 }}
+            >
+              {user.name}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+      <View style={h.app}>
+        <View style={h.main}>
+          {!current && (
+            <View
+              style={[
+                h.toolbar,
+                { paddingHorizontal: gutter },
+                desktop
+                  ? { paddingTop: 44, paddingBottom: 48 }
+                  : { flexWrap: "wrap", paddingTop: 16, paddingBottom: 24 },
+              ]}
+            >
+              <Text
+                style={[
+                  h.screenName,
+                  !desktop && {
+                    fontSize: 32,
+                    lineHeight: 38,
+                    flexBasis: "100%",
+                    paddingBottom: 8,
+                  },
+                ]}
+              >
+                {nav === "Groups" && Object.keys(totals).length ? (
+                  <>
+                    {(() => {
+                      const owed = Object.entries(totals).filter(
+                          ([, n]) => (n as number) > 0,
+                        ),
+                        owe = Object.entries(totals).filter(
+                          ([, n]) => (n as number) < 0,
+                        );
+                      const sums = (list: any[], colour: string) =>
+                        list.map(([c, n], i) => (
+                          <Text key={c}>
+                            {i ? (i === list.length - 1 ? " and " : ", ") : ""}
+                            <Text style={{ color: colour }}>
+                              {money(Math.abs(n as number), c)}
+                            </Text>
+                          </Text>
+                        ));
+                      if (!owed.length && !owe.length)
+                        return "You are all settled up.";
+                      return (
+                        <>
+                          {!!owed.length && (
+                            <>You are owed {sums(owed, C.pink)}</>
+                          )}
+                          {!!owed.length && !!owe.length && ", and you owe "}
+                          {!owed.length && !!owe.length && "You owe "}
+                          {sums(owe, C.bg)}.
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : nav === "Activity" ? (
+                  "Recent activity"
+                ) : nav === "Workspace" ? (
+                  "Account"
+                ) : (
+                  nav
+                )}
+              </Text>
+              {(nav === "Groups"
+                ? groups.length > 5
+                : nav === "Friends"
+                  ? friends.length > 5
+                  : nav === "Activity") && (
+                <Button
+                  small
+                  inverse
+                  label={searching ? "Close search" : "Search"}
+                  onPress={() => setSearching(!searching)}
+                />
+              )}
+
+              {nav === "Groups" ? (
+                <Button
+                  small
+                  inverse
+                  label="New group"
+                  onPress={() => onOpen("New group")}
+                />
               ) : nav === "Friends" ? (
-                <Pressable
-                  accessibilityRole="button"
+                <Button
+                  small
+                  inverse
+                  label="Add people"
                   onPress={() =>
                     onOpen(groups.length ? "Choose group" : "New group", {
                       intent: "people",
                     })
                   }
-                >
-                  <Text style={h.textAction}>Add people</Text>
-                </Pressable>
-              ) : (
-                <View style={{ width: 32 }} />
-              )}
+                />
+              ) : null}
             </View>
           )}
           {searching && !current && (
-            <View style={{ paddingHorizontal: 20, paddingBottom: 10 }}>
+            <View style={{ paddingHorizontal: gutter, paddingVertical: 10 }}>
               <TextInput
                 accessibilityLabel="Search groups or people"
                 value={search}
@@ -306,652 +520,690 @@ export function ExpenseHome({
           )}
           <Animated.ScrollView
             style={entrance}
-            contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+            contentContainerStyle={{
+              paddingBottom: 100,
+              flexGrow: 1,
+              paddingHorizontal:
+                !current && (nav === "Friends" || nav === "Activity")
+                  ? gutter
+                  : 0,
+              paddingTop:
+                !current && (nav === "Friends" || nav === "Activity") ? 16 : 0,
+            }}
             keyboardShouldPersistTaps="handled"
           >
             {current ? (
               <>
-                <View style={h.cover}>
-                  <View style={h.coverShape} />
+                <View style={[h.groupHead, { paddingHorizontal: gutter }]}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Back to groups"
+                    onPress={onBack}
+                    style={h.backLink}
+                  >
+                    {icon("arrow-left", 18, "#B4C4AE")}
+                    <Text style={{ fontSize: 15, color: "#B4C4AE" }}>
+                      Groups
+                    </Text>
+                  </Pressable>
+                  <View style={h.groupTitleRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          h.groupName,
+                          !desktop && { fontSize: 28, lineHeight: 32 },
+                        ]}
+                      >
+                        {group.name}
+                      </Text>
+                      <Text
+                        style={[
+                          h.small,
+                          { fontSize: 16, marginTop: 4, color: "#B4C4AE" },
+                        ]}
+                      >
+                        {listNames(
+                          group.members
+                            .filter((m: any) => m.id !== mine(group))
+                            .map((m: any) => m.name),
+                        )}
+                      </Text>
+                    </View>
+                    {!desktop && !!group.transfers.length && (
+                      <Button
+                        small
+                        accent
+                        label="Settle up"
+                        onPress={() => setSection("Balances")}
+                      />
+                    )}
+                    {desktop && (
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={[h.heroLabel, { color: "#B4C4AE" }]}>
+                          {balance(group) === 0
+                            ? "All settled up"
+                            : balance(group) > 0
+                              ? "You are owed"
+                              : "You owe"}
+                        </Text>
+                        <Figure
+                          minor={Math.abs(balance(group))}
+                          currency={group.currency}
+                          size={64}
+                          tone={balance(group) > 0 ? C.pink : C.bg}
+                        />
+                      </View>
+                    )}
+                  </View>
+                  {!desktop && (
+                    <View
+                      style={
+                        desktop
+                          ? {
+                              flexDirection: "row",
+                              alignItems: "flex-start",
+                              gap: 56,
+                              marginTop: 32,
+                              marginBottom: 12,
+                            }
+                          : h.hero
+                      }
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[h.heroLabel, { color: "#B4C4AE" }]}>
+                          {balance(group) === 0
+                            ? "You are all settled up"
+                            : balance(group) > 0
+                              ? "You are owed"
+                              : "You owe"}
+                        </Text>
+                        <Figure
+                          minor={balance(group)}
+                          currency={group.currency}
+                          size={desktop ? 64 : 40}
+                          tone={balance(group) > 0 ? C.pink : C.bg}
+                        />
+                      </View>
+                      {desktop && (
+                        <View style={{ width: 400 }}>{balancesPanel}</View>
+                      )}
+                    </View>
+                  )}
                   <View
                     style={[
-                      h.coverShape,
-                      {
-                        left: "60%",
-                        top: 15,
-                        backgroundColor: "#7E9B68",
-                        transform: [{ rotate: "-35deg" }],
-                      },
+                      h.tabs,
+                      !desktop && { gap: 14, flexWrap: "nowrap" },
                     ]}
-                  />
-                  <View style={h.coverToolbar}>
-                    <IconButton
-                      name="arrow-left"
-                      label="Back to groups"
-                      onPress={onBack}
-                      color="white"
-                    />
-                    <IconButton
-                      name="settings"
-                      label="Group settings"
-                      onPress={() => setSection("Members")}
-                      color="white"
-                    />
-                  </View>
-                </View>
-                <View style={h.groupHeading}>
-                  <View style={h.groupAvatar}>
-                    {icon("users", 34, "white")}
-                  </View>
-                  <Text style={h.groupName}>{group.name}</Text>
-                  <Text style={h.balanceLine}>
-                    {balance(group) === 0
-                      ? "You are all settled up."
-                      : balance(group) > 0
-                        ? "You are owed "
-                        : "You owe "}
-                    <Text
-                      style={{ color: balance(group) > 0 ? C.green : C.red }}
-                    >
-                      {balance(group) !== 0
-                        ? money(Math.abs(balance(group)), group.currency)
-                        : ""}
-                    </Text>
-                  </Text>
-                  <Text style={h.small}>
-                    {group.members.length}{" "}
-                    {group.members.length === 1 ? "person" : "people"} ·{" "}
-                    {group.currency}
-                  </Text>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={{ height: 64, flexGrow: 0 }}
-                  contentContainerStyle={h.actions}
-                >
-                  {[
-                    ["Settle up", "Balances"],
-                    ["Expenses", "Expenses"],
-                    ["Balances", "Balances"],
-                    ["Charts", "Totals"],
-                    ["Search", "Search"],
-                  ].map(([label, value], i) => (
-                    <Pressable
-                      key={label}
-                      accessibilityRole="button"
-                      accessibilityLabel={label}
-                      onPress={() => setSection(value)}
-                      style={[
-                        h.action,
-                        i === 0 && {
-                          backgroundColor: C.red,
-                          borderColor: C.red,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 15,
-                          color: i === 0 ? "white" : C.ink,
-                        }}
+                  >
+                    {(
+                      [
+                        ["Expenses", "Expenses"],
+                        ...(desktop ? [] : [["Balances", "Balances"]]),
+                        ["Summary", "Totals"],
+                        ["Search", "Search"],
+                        ["People", "Members"],
+                      ] as string[][]
+                    ).map(([label, value]) => (
+                      <Pressable
+                        key={label}
+                        accessibilityRole="tab"
+                        accessibilityLabel={label}
+                        accessibilityState={{ selected: section === value }}
+                        onPress={() => setSection(value)}
+                        style={[h.tab, active(value) && h.tabActive]}
                       >
-                        {label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-                {section === "Expenses" && (
-                  <>
-                    {!group.expenses.some((e: any) => !e.voided_at) ? (
-                      <Empty
-                        iconName="file-text"
-                        title={
-                          group.members.length === 1
-                            ? "Add your people"
-                            : "No expenses here yet"
-                        }
-                        body={
-                          group.members.length === 1
-                            ? "Your group is ready. Add people by name or share an invitation to split expenses together."
-                            : "Add an expense to start keeping track of who owes what."
-                        }
-                        action={
-                          <View style={{ gap: 12 }}>
-                            {group.members.length === 1 && (
-                              <Button
-                                label="Add people"
-                                onPress={() => setSection("Members")}
-                              />
-                            )}
-                            <Button
-                              secondary={group.members.length === 1}
-                              label="Add an expense"
-                              onPress={() => onOpen("Add expense")}
-                            />
-                          </View>
-                        }
-                      />
-                    ) : (
-                      group.expenses
-                        .filter((e: any) => !e.voided_at)
-                        .sort((a: any, b: any) =>
-                          b.spent_on.localeCompare(a.spent_on),
-                        )
-                        .map((e: any, index: number, list: any[]) => {
-                          const date = expenseDate(e.spent_on);
-                          const month = date.toLocaleDateString("en-US", {
-                            month: "long",
-                            year: "numeric",
-                          });
-                          const prior = index
-                            ? expenseDate(
-                                list[index - 1].spent_on,
-                              ).toLocaleDateString("en-US", {
-                                month: "long",
-                                year: "numeric",
-                              })
-                            : "";
-                          const net = expenseImpact(e, mine(group));
-                          return (
-                            <React.Fragment key={e.id}>
-                              {month !== prior && (
-                                <Text style={h.month}>{month}</Text>
-                              )}
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={`Expense: ${e.title}`}
-                                onPress={() =>
-                                  onOpen("Expense details", { expense: e })
-                                }
-                                style={h.expenseRow}
-                              >
-                                <View style={h.date}>
-                                  <Text style={h.small}>
-                                    {date.toLocaleDateString("en-US", {
-                                      month: "short",
-                                    })}
-                                  </Text>
-                                  <Text
-                                    style={{ fontSize: 19, color: C.muted }}
-                                  >
-                                    {date.getDate()}
-                                  </Text>
-                                </View>
-                                <View
-                                  style={[
-                                    h.category,
-                                    {
-                                      backgroundColor:
-                                        colors[index % colors.length],
-                                    },
-                                  ]}
-                                >
-                                  {icon(
-                                    categoryIcons[e.category] || "file-text",
-                                    25,
-                                    "#5A6666",
-                                  )}
-                                </View>
-                                <View style={{ flex: 1, minWidth: 0 }}>
-                                  <Text numberOfLines={1} style={h.rowTitle}>
-                                    {e.title}
-                                  </Text>
-                                  <Text numberOfLines={1} style={h.small}>
-                                    {e.paid_by === mine(group)
-                                      ? "You"
-                                      : memberName(e.paid_by)}{" "}
-                                    paid {money(e.amount_minor, group.currency)}
-                                  </Text>
-                                </View>
-                                <View style={h.expenseBalance}>
-                                  <Text
-                                    style={{
-                                      fontSize: 11,
-                                      color:
-                                        net > 0
-                                          ? C.green
-                                          : net < 0
-                                            ? C.red
-                                            : C.muted,
-                                    }}
-                                  >
-                                    {net > 0
-                                      ? "you lent"
-                                      : net < 0
-                                        ? "you borrowed"
-                                        : "not involved"}
-                                  </Text>
-                                  {net !== 0 && (
-                                    <Text
-                                      style={{
-                                        fontSize: 17,
-                                        color: net > 0 ? C.green : C.red,
-                                      }}
-                                    >
-                                      {money(Math.abs(net), group.currency)}
-                                    </Text>
-                                  )}
-                                </View>
-                              </Pressable>
-                            </React.Fragment>
-                          );
-                        })
-                    )}
-                  </>
-                )}
-                {section === "Balances" && (
-                  <View style={h.section}>
-                    <Text style={h.sectionTitle}>Group balances</Text>
-                    {group.members.map((m: any) => (
-                      <View key={m.id} style={h.settingRow}>
-                        <Text style={h.rowTitle}>
-                          {m.id === mine(group) ? "You" : m.name}
-                        </Text>
                         <Text
                           style={{
-                            color: group.balances[m.id] >= 0 ? C.green : C.red,
+                            fontSize: desktop ? 16 : 14,
+                            fontWeight: "500",
+                            color: active(value) ? C.bg : "#B4C4AE",
                           }}
                         >
-                          {group.balances[m.id] >= 0
-                            ? m.id === mine(group)
-                              ? "are owed "
-                              : "is owed "
-                            : m.id === mine(group)
-                              ? "owe "
-                              : "owes "}
-                          {money(
-                            Math.abs(group.balances[m.id]),
-                            group.currency,
-                          )}
+                          {label}
                         </Text>
-                      </View>
+                      </Pressable>
                     ))}
-                    <Text style={[h.sectionTitle, { marginTop: 28 }]}>
-                      Settle up
-                    </Text>
-                    {!group.transfers.length ? (
-                      <Text style={h.small}>No payments needed.</Text>
-                    ) : (
-                      group.transfers.map((t: any, i: number) => (
-                        <Pressable
-                          key={i}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Record payment from ${memberName(t.from)} to ${memberName(t.to)}`}
-                          onPress={() =>
-                            onOpen("Record payment", {
-                              from: t.from,
-                              to: t.to,
-                              amount: (t.amountMinor / 100).toFixed(2),
+                  </View>
+                </View>
+                <View
+                  style={
+                    desktop
+                      ? {
+                          flexDirection: "row",
+                          alignItems: "flex-start",
+                          gap: 56,
+                          paddingHorizontal: gutter,
+                        }
+                      : undefined
+                  }
+                >
+                  <View
+                    style={[
+                      { flex: 1, minWidth: 0 },
+                      !desktop && { paddingHorizontal: 20 },
+                    ]}
+                  >
+                    {section === "Expenses" && (
+                      <>
+                        {desktop && !!group.transfers.length && (
+                          <View style={{ paddingTop: 36 }}>
+                            {balancesPanel}
+                          </View>
+                        )}
+                        {!group.expenses.some((e: any) => !e.voided_at) ? (
+                          <Empty
+                            iconName="file-text"
+                            title={
+                              group.members.length === 1
+                                ? "Add your people"
+                                : "No expenses here yet"
+                            }
+                            body={
+                              group.members.length === 1
+                                ? "Your group is ready. Add people by name or share an invitation to split expenses together."
+                                : "Add an expense to start keeping track of who owes what."
+                            }
+                            action={
+                              <View style={{ gap: 12 }}>
+                                {group.members.length === 1 && (
+                                  <Button
+                                    label="Add people"
+                                    onPress={() => setSection("Members")}
+                                  />
+                                )}
+                                <Button
+                                  secondary={group.members.length === 1}
+                                  label="Add an expense"
+                                  onPress={() => onOpen("Add expense")}
+                                />
+                              </View>
+                            }
+                          />
+                        ) : (
+                          group.expenses
+                            .filter((e: any) => !e.voided_at)
+                            .sort((a: any, b: any) =>
+                              b.spent_on.localeCompare(a.spent_on),
+                            )
+                            .map((e: any, index: number, list: any[]) => {
+                              const date = expenseDate(e.spent_on);
+                              const month = date.toLocaleDateString("en-US", {
+                                month: "long",
+                                year: "numeric",
+                              });
+                              const prior = index
+                                ? expenseDate(
+                                    list[index - 1].spent_on,
+                                  ).toLocaleDateString("en-US", {
+                                    month: "long",
+                                    year: "numeric",
+                                  })
+                                : "";
+                              const net = expenseImpact(e, mine(group));
+                              return (
+                                <React.Fragment key={e.id}>
+                                  {month !== prior && (
+                                    <View style={h.monthRow}>
+                                      <Text style={h.monthText}>{month}</Text>
+                                    </View>
+                                  )}
+                                  <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Expense: ${e.title}`}
+                                    onPress={() =>
+                                      onOpen("Expense details", { expense: e })
+                                    }
+                                    style={h.expenseRow}
+                                  >
+                                    <Text style={h.rowDate}>
+                                      {date.toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                      })}
+                                    </Text>
+                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                      <Text
+                                        numberOfLines={1}
+                                        style={h.rowTitle}
+                                      >
+                                        {e.title}
+                                      </Text>
+                                      <Text numberOfLines={1} style={h.small}>
+                                        {e.paid_by === mine(group)
+                                          ? "You"
+                                          : memberName(e.paid_by)}{" "}
+                                        paid{" "}
+                                        {money(e.amount_minor, group.currency)}
+                                      </Text>
+                                    </View>
+                                    <View style={h.expenseBalance}>
+                                      {net !== 0 && (
+                                        <Figure
+                                          minor={net}
+                                          currency={group.currency}
+                                          size={18}
+                                          signed
+                                        />
+                                      )}
+                                      <Text style={h.small}>
+                                        {net > 0
+                                          ? "you lent"
+                                          : net < 0
+                                            ? "you borrowed"
+                                            : "not involved"}
+                                      </Text>
+                                    </View>
+                                  </Pressable>
+                                </React.Fragment>
+                              );
                             })
+                        )}
+                      </>
+                    )}
+                    {section === "Balances" && !desktop && (
+                      <View style={h.section}>{balancesPanel}</View>
+                    )}
+                    {section === "Totals" && (
+                      <View style={h.section}>
+                        <ExpenseCharts group={group} />
+                      </View>
+                    )}
+                    {section === "Search" && (
+                      <View style={h.section}>
+                        <ExpenseSearch
+                          groups={[group]}
+                          onOpen={(_g: any, e: any) =>
+                            onOpen("Expense details", { expense: e })
                           }
+                        />
+                      </View>
+                    )}
+                    {section === "Members" && (
+                      <View style={h.section}>
+                        <Text style={h.sectionTitle}>People in this group</Text>
+                        {group.members.map((m: any) => (
+                          <View key={m.id} style={h.settingRow}>
+                            <View style={h.friendAvatar}>
+                              <Text style={{ fontSize: 18, color: C.green }}>
+                                {m.name[0].toUpperCase()}
+                              </Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={h.rowTitle}>
+                                {m.name}
+                                {m.user_id === user.id ? " (you)" : ""}
+                              </Text>
+                              <Text style={h.small}>
+                                {m.user_id
+                                  ? "Joined this group"
+                                  : "Tracked by name, not joined"}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                        {owner && (
+                          <View style={{ gap: 12, marginVertical: 20 }}>
+                            <Button
+                              secondary
+                              label="Add person by name"
+                              onPress={() => onOpen("Add person")}
+                            />
+                            <Button
+                              label="Share invitation"
+                              onPress={onShareInvite}
+                            />
+                            <Button
+                              secondary
+                              label="Copy invite link"
+                              onPress={onCopyInvite}
+                            />
+                            <Pressable
+                              accessibilityRole="button"
+                              onPress={() => onOpen("Invitation link")}
+                            >
+                              <Text style={h.textAction}>
+                                View invitation link
+                              </Text>
+                            </Pressable>
+                            <Text style={h.small}>
+                              An invitation creates the person’s own profile. A
+                              person already tracked by name is not
+                              automatically merged.
+                            </Text>
+                            <Pressable
+                              accessibilityRole="button"
+                              onPress={() => onOpen("Replace invitation link")}
+                            >
+                              <Text style={h.small}>
+                                Replace invitation link
+                              </Text>
+                            </Pressable>
+                          </View>
+                        )}
+                        <Text style={[h.sectionTitle, { marginTop: 24 }]}>
+                          More
+                        </Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => setSection("Receipts")}
                           style={h.settingRow}
                         >
-                          <View style={{ flex: 1 }}>
-                            <Text style={h.rowTitle}>
-                              {memberName(t.from)} → {memberName(t.to)}
-                            </Text>
-                            <Text style={h.small}>
-                              Record an external payment
-                            </Text>
-                          </View>
-                          <Text style={{ color: C.green, fontWeight: "600" }}>
-                            {money(t.amountMinor, group.currency)}
+                          {icon("inbox", 20)}
+                          <Text style={{ flex: 1 }}>Receipt inbox</Text>
+                          <Text style={h.small}>
+                            {
+                              group.receipts.filter(
+                                (r: any) => r.status === "pending",
+                              ).length
+                            }{" "}
+                            pending
                           </Text>
                           {icon("chevron-right", 18)}
                         </Pressable>
-                      ))
-                    )}
-                    <Text style={[h.small, { marginTop: 18 }]}>
-                      Payments happen outside Fairshare. Recording one updates
-                      the balances.
-                    </Text>
-                  </View>
-                )}
-                {section === "Totals" && (
-                  <View style={h.section}>
-                    <ExpenseCharts group={group} />
-                  </View>
-                )}
-                {section === "Search" && (
-                  <View style={h.section}>
-                    <ExpenseSearch
-                      groups={[group]}
-                      onOpen={(_g: any, e: any) =>
-                        onOpen("Expense details", { expense: e })
-                      }
-                    />
-                  </View>
-                )}
-                {section === "Members" && (
-                  <View style={h.section}>
-                    <Text style={h.sectionTitle}>People in this group</Text>
-                    {group.members.map((m: any) => (
-                      <View key={m.id} style={h.settingRow}>
-                        <View style={h.friendAvatar}>
-                          <Text style={{ fontSize: 18, color: C.green }}>
-                            {m.name[0].toUpperCase()}
-                          </Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={h.rowTitle}>
-                            {m.name}
-                            {m.user_id === user.id ? " (you)" : ""}
-                          </Text>
-                          <Text style={h.small}>
-                            {m.user_id
-                              ? "Joined this group"
-                              : "Tracked by name · not joined"}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                    {owner && (
-                      <View style={{ gap: 12, marginVertical: 20 }}>
-                        <Button
-                          secondary
-                          label="Add person by name"
-                          onPress={() => onOpen("Add person")}
-                        />
-                        <Button
-                          label="Share invitation"
-                          onPress={onShareInvite}
-                        />
-                        <Button
-                          secondary
-                          label="Copy invite link"
-                          onPress={onCopyInvite}
-                        />
                         <Pressable
                           accessibilityRole="button"
-                          onPress={() => onOpen("Invitation link")}
+                          onPress={() => setSection("Agents")}
+                          style={h.settingRow}
                         >
-                          <Text style={h.textAction}>View invitation link</Text>
-                        </Pressable>
-                        <Text style={h.small}>
-                          An invitation creates the person’s own profile. A
-                          person already tracked by name is not automatically
-                          merged.
-                        </Text>
-                        <Pressable
-                          accessibilityRole="button"
-                          onPress={() => onOpen("Replace invitation link")}
-                        >
-                          <Text style={h.small}>Replace invitation link</Text>
+                          {icon("cpu", 20)}
+                          <Text style={{ flex: 1 }}>Agent connections</Text>
+                          {icon("chevron-right", 18)}
                         </Pressable>
                       </View>
                     )}
-                    <Text style={[h.sectionTitle, { marginTop: 24 }]}>
-                      More
-                    </Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setSection("Receipts")}
-                      style={h.settingRow}
-                    >
-                      {icon("inbox", 20)}
-                      <Text style={{ flex: 1 }}>Receipt inbox</Text>
-                      <Text style={h.small}>
-                        {
-                          group.receipts.filter(
-                            (r: any) => r.status === "pending",
-                          ).length
-                        }{" "}
-                        pending
-                      </Text>
-                      {icon("chevron-right", 18)}
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setSection("Agents")}
-                      style={h.settingRow}
-                    >
-                      {icon("cpu", 20)}
-                      <Text style={{ flex: 1 }}>Agent connections</Text>
-                      {icon("chevron-right", 18)}
-                    </Pressable>
-                  </View>
-                )}
-                {section === "Receipts" && (
-                  <View style={h.section}>
-                    <View style={h.settingRow}>
-                      <Text style={h.sectionTitle}>Receipt inbox</Text>
-                      <Button
-                        small
-                        secondary
-                        label="Add receipt"
-                        onPress={() => onOpen("Submit receipt")}
-                      />
-                    </View>
-                    <Text style={h.small}>
-                      Approve drafts here, or tell your agent “submit it” to
-                      save them as expenses.
-                    </Text>
-                    {!group.receipts.length && (
-                      <Text style={{ color: C.muted, marginTop: 24 }}>
-                        No receipt drafts.
-                      </Text>
-                    )}
-                    {group.receipts.map((r: any) => (
-                      <View key={r.id} style={h.receipt}>
-                        <Text style={h.rowTitle}>{r.payload.title}</Text>
+                    {section === "Receipts" && (
+                      <View style={h.section}>
+                        <View style={h.settingRow}>
+                          <Text style={h.sectionTitle}>Receipt inbox</Text>
+                          <Button
+                            small
+                            secondary
+                            label="Add receipt"
+                            onPress={() => onOpen("Submit receipt")}
+                          />
+                        </View>
                         <Text style={h.small}>
-                          {money(r.payload.amountMinor, group.currency)} ·{" "}
-                          {r.status}
+                          Approve drafts here, or tell your agent “submit it” to
+                          save them as expenses.
                         </Text>
-                        {r.status === "pending" && (
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              gap: 10,
-                              marginTop: 12,
-                            }}
-                          >
-                            <Button
-                              small
-                              label="Review receipt"
-                              onPress={() => onReview(r)}
-                            />
+                        {!group.receipts.length && (
+                          <Text style={{ color: C.muted, marginTop: 24 }}>
+                            No receipt drafts.
+                          </Text>
+                        )}
+                        {group.receipts.map((r: any) => (
+                          <View key={r.id} style={h.receipt}>
+                            <Text style={h.rowTitle}>{r.payload.title}</Text>
+                            <Text style={h.small}>
+                              {money(r.payload.amountMinor, group.currency)},{" "}
+                              {r.status}
+                            </Text>
+                            {r.status === "pending" && (
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  gap: 10,
+                                  marginTop: 12,
+                                }}
+                              >
+                                <Button
+                                  small
+                                  label="Review receipt"
+                                  onPress={() => onReview(r)}
+                                />
+                                <Button
+                                  small
+                                  secondary
+                                  label="Reject"
+                                  onPress={() => onRejectReceipt(r)}
+                                />
+                              </View>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    {section === "Agents" && (
+                      <View style={h.section}>
+                        <Text style={h.railTitle}>Assistants</Text>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            lineHeight: 24,
+                            color: C.ink,
+                            maxWidth: 560,
+                            marginTop: 16,
+                            marginBottom: 20,
+                          }}
+                        >
+                          Connect an AI assistant and it can draft expenses from
+                          your receipts. Nothing posts until you say so.
+                        </Text>
+                        {owner && (
+                          <View style={{ alignSelf: "flex-start" }}>
                             <Button
                               small
                               secondary
-                              label="Reject"
-                              onPress={() => onRejectReceipt(r)}
+                              label="Connect an assistant"
+                              accessibilityLabel="Set up an agent"
+                              onPress={() => onOpen("Connect an agent")}
                             />
                           </View>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                )}
-                {section === "Agents" && (
-                  <View style={h.section}>
-                    <Text style={h.sectionTitle}>Agent connections</Text>
-                    <Text style={[h.small, { marginBottom: 20 }]}>
-                      Optional assistants can prepare drafts and post them as
-                      expenses when you ask. They can also correct or void their
-                      own posted expenses and reject unwanted drafts.
-                    </Text>
-                    {owner && (
-                      <Button
-                        label="Set up an agent"
-                        onPress={() => onOpen("Connect an agent")}
-                      />
-                    )}{" "}
-                    {group.agents.map((a: any) => (
-                      <View key={a.id} style={h.receipt}>
-                        <Text style={h.rowTitle}>{a.name}</Text>
-                        <Text style={h.small}>{agentConnectionLabel(a)}</Text>
-                        {owner && !a.revoked_at && (
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              gap: 10,
-                              marginTop: 12,
-                            }}
-                          >
-                            <Button
-                              small
-                              secondary
-                              label="Setup"
-                              onPress={() =>
-                                onOpen(
-                                  a.authorization_expires_at
-                                    ? "Connect an agent"
-                                    : "Set up agent",
-                                  {
-                                    agentId: a.id,
-                                    name: a.name,
-                                  },
-                                )
-                              }
-                            />
-                            <Button
-                              small
-                              secondary
-                              label="Revoke"
-                              onPress={() =>
-                                onOpen("Revoke agent", {
-                                  id: a.id,
-                                  name: a.name,
-                                })
-                              }
-                            />
+                        )}{" "}
+                        {group.agents.map((a: any) => (
+                          <View key={a.id} style={h.receipt}>
+                            <Text style={h.rowTitle}>{a.name}</Text>
+                            <Text style={h.small}>
+                              {agentConnectionLabel(a)}
+                            </Text>
+                            {owner && !a.revoked_at && (
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  gap: 10,
+                                  marginTop: 12,
+                                }}
+                              >
+                                <Button
+                                  small
+                                  secondary
+                                  label="Setup"
+                                  onPress={() =>
+                                    onOpen(
+                                      a.authorization_expires_at
+                                        ? "Connect an agent"
+                                        : "Set up agent",
+                                      {
+                                        agentId: a.id,
+                                        name: a.name,
+                                      },
+                                    )
+                                  }
+                                />
+                                <Button
+                                  small
+                                  secondary
+                                  label="Revoke"
+                                  onPress={() =>
+                                    onOpen("Revoke agent", {
+                                      id: a.id,
+                                      name: a.name,
+                                    })
+                                  }
+                                />
+                              </View>
+                            )}
                           </View>
-                        )}
+                        ))}
                       </View>
-                    ))}
+                    )}
                   </View>
-                )}
+                </View>
               </>
             ) : nav === "Groups" ? (
               <>
-                <View style={[h.welcome, { padding: desktop ? 32 : 24 }]}>
-                  <View style={{ flex: 1, minWidth: 0, gap: 13 }}>
-                    <Eyebrow light>THE GOOD KIND OF SHARED HISTORY</Eyebrow>
-                    <Text
-                      accessibilityRole="header"
-                      style={[h.welcomeTitle, { fontSize: desktop ? 43 : 34 }]}
-                    >
-                      More together.{"\n"}Less to keep track of.
-                    </Text>
-                    <Text style={h.welcomeBody}>
-                      Every trip, every dinner, every little thing. All in one
-                      place.
-                    </Text>
-                  </View>
-                  {desktop && (
-                    <View style={h.welcomeMark}>
-                      <Brand compact inverse />
-                    </View>
-                  )}
-                </View>
-                <View style={h.overall}>
-                  <View style={{ flex: 1 }}>
-                    {Object.entries(totals).length ? (
-                      Object.entries(totals).map(([currency, amount]) => (
-                        <Text key={currency} style={h.overallText}>
-                          Overall,{" "}
-                          {amount === 0
-                            ? "you are settled up"
-                            : amount > 0
-                              ? "you are owed "
-                              : "you owe "}
-                          <Text style={{ color: amount > 0 ? C.green : C.red }}>
-                            {amount !== 0
-                              ? money(Math.abs(amount), currency)
-                              : ""}
+                <View
+                  style={
+                    desktop
+                      ? {
+                          flexDirection: "row",
+                          alignItems: "flex-start",
+                          gap: 56,
+                          paddingHorizontal: gutter,
+                          paddingTop: 40,
+                        }
+                      : { paddingHorizontal: 20, paddingTop: 24 }
+                  }
+                >
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={h.listHead}>
+                      <Text
+                        style={{
+                          fontSize: 15,
+                          fontWeight: "600",
+                          color: C.ink,
+                        }}
+                      >
+                        {onlyBalances ? "Groups with a balance" : "Groups"}
+                      </Text>
+                      {groups.length > 5 && (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            onlyBalances
+                              ? "Show all groups"
+                              : "Show groups with balances"
+                          }
+                          onPress={() => setOnlyBalances(!onlyBalances)}
+                        >
+                          <Text style={h.linkish}>
+                            {onlyBalances ? "Show all" : "Only unsettled"}
                           </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                    {groupRows.map((g: any) => (
+                      <Pressable
+                        key={g.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${g.name}`}
+                        onPress={() => select(g.id)}
+                        style={({ pressed }) => [
+                          h.groupRow,
+                          pressed && { backgroundColor: C.pale },
+                        ]}
+                      >
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={h.groupRowTitle} numberOfLines={1}>
+                            {g.name}
+                          </Text>
+                          <Text style={[h.small, { marginTop: 2 }]}>
+                            {listNames(
+                              g.members
+                                .filter((m: any) => m.id !== mine(g))
+                                .map((m: any) => m.name),
+                            )}
+                          </Text>
+                        </View>
+                        <Balance
+                          amount={balance(g)}
+                          currency={g.currency}
+                          large
+                        />
+                      </Pressable>
+                    ))}
+                    {!groups.length ? (
+                      <Empty
+                        title="Start with a group"
+                        body="Create a group for a trip, home, or everyday expenses. Add your people, then your first expense."
+                        action={
+                          <Button
+                            label="Create a group"
+                            onPress={() => onOpen("New group")}
+                          />
+                        }
+                      />
+                    ) : !groupRows.length ? (
+                      <Text style={{ paddingVertical: 24, color: C.muted }}>
+                        No matching groups.
+                      </Text>
+                    ) : null}
+                    {!!groups.length && (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Open an invitation link"
+                        onPress={() => onOpen("Join a group")}
+                        style={{ alignSelf: "flex-start", marginTop: 18 }}
+                      >
+                        <Text style={h.linkish}>
+                          Join a group with an invitation link
                         </Text>
-                      ))
-                    ) : (
-                      <Text style={h.overallText}>Your groups</Text>
+                      </Pressable>
+                    )}
+                    {!!activity.length && !!groupRows.length && (
+                      <>
+                        <View style={[h.listHead, { marginTop: 56 }]}>
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "600",
+                              color: C.ink,
+                            }}
+                          >
+                            Lately
+                          </Text>
+                        </View>
+                        {[...activity]
+                          .filter((a: any) => !a.item.voided_at)
+                          .sort((a: any, b: any) =>
+                            String(b.when || b.date).localeCompare(
+                              String(a.when || a.date),
+                            ),
+                          )
+                          .slice(0, 5)
+                          .map((a: any) => {
+                            const payer = a.g.members.find(
+                              (m: any) => m.id === a.item.paid_by,
+                            );
+                            return (
+                              <Pressable
+                                key={a.item.id}
+                                accessibilityRole="button"
+                                onPress={() => select(a.g.id)}
+                                style={h.expenseRow}
+                              >
+                                <Text style={h.rowDate}>
+                                  {(a.kind === "expense"
+                                    ? expenseDate(a.item.spent_on)
+                                    : new Date(a.date)
+                                  ).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </Text>
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                  <Text style={h.rowTitle} numberOfLines={1}>
+                                    {a.kind === "expense"
+                                      ? a.item.title
+                                      : "Payment"}
+                                  </Text>
+                                  <Text style={h.small} numberOfLines={1}>
+                                    {a.g.name}
+                                  </Text>
+                                </View>
+                                <Figure
+                                  minor={a.item.amount_minor}
+                                  currency={a.g.currency}
+                                  size={19}
+                                />
+                              </Pressable>
+                            );
+                          })}
+                      </>
                     )}
                   </View>
-                  <IconButton
-                    name="sliders"
-                    label={
-                      onlyBalances
-                        ? "Show all groups"
-                        : "Show groups with balances"
-                    }
-                    onPress={() => setOnlyBalances(!onlyBalances)}
-                  />
                 </View>
-                {onlyBalances && (
-                  <Text
-                    style={[
-                      h.small,
-                      { paddingHorizontal: 20, paddingBottom: 12 },
-                    ]}
-                  >
-                    Showing groups with a balance
-                  </Text>
-                )}
-                {groupRows.map((g: any, i: number) => (
-                  <Pressable
-                    key={g.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open ${g.name}`}
-                    onPress={() => select(g.id)}
-                    style={({ pressed }) => [
-                      h.groupRow,
-                      h.groupCard,
-                      pressed && {
-                        backgroundColor: C.pale,
-                        transform: [{ scale: 0.99 }],
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        h.groupListAvatar,
-                        {
-                          backgroundColor: ["#53774B", "#87715C", "#647B80"][
-                            i % 3
-                          ],
-                        },
-                      ]}
-                    >
-                      {icon("users", 27, "white")}
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={h.groupRowTitle} numberOfLines={1}>
-                        {g.name}
-                      </Text>
-                      <Text style={[h.small, { marginTop: 5 }]}>
-                        {g.members.length}{" "}
-                        {g.members.length === 1 ? "person" : "people"} ·{" "}
-                        {g.expenses.filter((e: any) => !e.voided_at).length}{" "}
-                        expenses
-                      </Text>
-                    </View>
-                    <Balance amount={balance(g)} currency={g.currency} />
-                  </Pressable>
-                ))}
-                {!groups.length ? (
-                  <Empty
-                    title="Start with a group"
-                    body="Create a group for a trip, home, or everyday expenses. Add your people, then your first expense."
-                    action={
-                      <Button
-                        label="Create a group"
-                        onPress={() => onOpen("New group")}
-                      />
-                    }
-                  />
-                ) : !groupRows.length ? (
-                  <Text style={{ padding: 24, color: C.muted }}>
-                    No matching groups.
-                  </Text>
-                ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => onOpen("Join a group")}
-                  style={h.join}
-                >
-                  <Text style={h.textAction}>Open an invitation link</Text>
-                </Pressable>
               </>
             ) : nav === "Friends" ? (
               <>
@@ -978,11 +1230,6 @@ export function ExpenseHome({
                         onPress={() => select(f.g.id)}
                         style={h.groupRow}
                       >
-                        <View style={h.friendAvatar}>
-                          <Text style={{ fontSize: 22, color: C.green }}>
-                            {f.m.name[0].toUpperCase()}
-                          </Text>
-                        </View>
                         <View style={{ flex: 1 }}>
                           <Text style={h.rowTitle}>{f.m.name}</Text>
                           <Text style={h.small}>{f.g.name}</Text>
@@ -994,10 +1241,10 @@ export function ExpenseHome({
                 {!!friends.length && (
                   <Text
                     style={{
-                      padding: 20,
+                      paddingVertical: 20,
                       color: C.muted,
-                      fontSize: 12,
-                      lineHeight: 18,
+                      fontSize: 13,
+                      lineHeight: 19,
                     }}
                   >
                     Balances show suggested payments with you within each group.
@@ -1032,16 +1279,6 @@ export function ExpenseHome({
                           onPress={() => select(a.g.id)}
                           style={h.activityRow}
                         >
-                          <View
-                            style={[h.category, { backgroundColor: "#E3EDE7" }]}
-                          >
-                            {icon(
-                              a.kind === "expense"
-                                ? "file-text"
-                                : "check-circle",
-                              25,
-                            )}
-                          </View>
                           <View style={{ flex: 1 }}>
                             <Text style={h.activityText}>
                               {a.kind === "expense" ? (
@@ -1071,7 +1308,7 @@ export function ExpenseHome({
                             {amount !== 0 && (
                               <Text
                                 style={{
-                                  color: amount > 0 ? C.green : C.red,
+                                  color: amount > 0 ? C.green : C.muted,
                                   fontSize: 14,
                                   marginTop: 4,
                                 }}
@@ -1093,74 +1330,56 @@ export function ExpenseHome({
                 )}
               </>
             ) : (
-              <View>
-                <View style={[h.groupRow, { paddingVertical: 26 }]}>
-                  <View style={h.friendAvatar}>
-                    {icon("user", 28, C.green)}
-                  </View>
-                  <View>
-                    <Text style={h.groupRowTitle}>{user.name}</Text>
-                    <Text style={h.small}>Private account</Text>
-                  </View>
-                </View>
-                <Text style={h.sectionStrip}>WORKSPACE</Text>
+              <View
+                style={{
+                  paddingHorizontal: gutter,
+                  paddingTop: 28,
+                }}
+              >
+                <Text style={[h.small, { marginBottom: 18 }]}>
+                  Signed in as {user.name}.{" "}
+                  {user.clerk_linked
+                    ? "Sign in the same way on any device to reach this account."
+                    : "Sign in with your phone number and password to reach this account from any device."}
+                </Text>
+                <View style={{ borderTopWidth: 1, borderColor: C.rule }} />
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => onOpen("Search expenses")}
-                  style={[h.settingRow, { paddingHorizontal: 20 }]}
-                >
-                  {icon("search", 22)}
-                  <Text style={{ flex: 1, fontSize: 16 }}>
-                    Search all expenses
-                  </Text>
-                  {icon("chevron-right", 18)}
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
+                  accessibilityLabel="Banks & private transactions"
                   onPress={() => onOpen("Banks")}
-                  style={[h.settingRow, { paddingHorizontal: 20 }]}
+                  style={h.accountRow}
                 >
-                  {icon("credit-card", 22)}
-                  <Text style={{ flex: 1, fontSize: 16 }}>
-                    Banks & private transactions
-                  </Text>
-                  {icon("chevron-right", 18)}
+                  <View style={{ flex: 1 }}>
+                    <Text style={h.groupRowTitle}>Bank transactions</Text>
+                    <Text style={h.small}>
+                      Split a card purchase without retyping it. Only you see
+                      the list.
+                    </Text>
+                  </View>
+                  <Text style={h.linkish}>Open</Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Display name & workspace"
                   onPress={() => onOpen("Workspace")}
-                  style={[h.settingRow, { paddingHorizontal: 20 }]}
+                  style={h.accountRow}
                 >
-                  {icon("smartphone", 22)}
-                  <Text style={{ flex: 1, fontSize: 16 }}>
-                    Display name & workspace
-                  </Text>
-                  {icon("chevron-right", 18)}
+                  <View style={{ flex: 1 }}>
+                    <Text style={h.groupRowTitle}>Display name</Text>
+                    <Text style={h.small}>
+                      How other people see you in groups.
+                    </Text>
+                  </View>
+                  <Text style={h.linkish}>Open</Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Sign out"
                   onPress={onSignOut}
-                  style={[h.settingRow, { paddingHorizontal: 20 }]}
+                  style={{ alignSelf: "flex-start", marginTop: 26 }}
                 >
-                  {icon("log-out", 22)}
-                  <Text style={{ flex: 1, fontSize: 16 }}>Sign out</Text>
+                  <Text style={h.linkish}>Sign out</Text>
                 </Pressable>
-                <Text
-                  style={{
-                    padding: 20,
-                    color: C.muted,
-                    fontSize: 13,
-                    lineHeight: 21,
-                  }}
-                >
-                  {user.clerk_linked
-                    ? "Sign in the same way on any device to access this private account."
-                    : "Sign in with your phone number and password to access the same private account from any device."}
-                </Text>
-                <Text style={{ padding: 20, color: C.muted, fontSize: 12 }}>
-                  Fairshare · shared expenses for your people
-                </Text>
               </View>
             )}
           </Animated.ScrollView>
@@ -1184,18 +1403,101 @@ export function ExpenseHome({
   );
 }
 const h = StyleSheet.create({
+  rowDate: { width: 64, fontSize: 14, color: C.muted },
+  listHead: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderColor: C.rule,
+    paddingBottom: 10,
+  },
+  summary: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 56,
+    paddingTop: 8,
+    paddingBottom: 32,
+  },
+  linkish: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: C.ink,
+    textDecorationLine: "underline",
+  },
+  railRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: C.line,
+  },
+  railTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: C.ink,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderColor: C.rule,
+  },
+  rail: { width: 360, paddingTop: 28 },
+  tabActive: { borderColor: C.pink },
+  tab: {
+    paddingVertical: 12,
+    borderBottomWidth: 3,
+    borderColor: "transparent",
+    marginBottom: -1,
+  },
+  tabs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 28,
+    marginTop: 28,
+    borderBottomWidth: 0,
+  },
+  heroLabel: { fontSize: 16, color: C.muted, marginBottom: 2 },
+  hero: { marginTop: 28 },
+  groupTitleRow: { flexDirection: "row", alignItems: "flex-end", gap: 16 },
+  backLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  groupHead: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    backgroundColor: C.green,
+  },
+  userInitial: {
+    width: 28,
+    height: 28,
+    backgroundColor: C.pale,
+    borderWidth: 1,
+    borderColor: C.rule,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  userChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 1,
+  },
   navLabel: {
     color: C.muted,
-    fontSize: 9,
-    letterSpacing: 1.5,
-    fontWeight: "700",
-    marginBottom: 24,
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 16,
   },
   welcome: {
     backgroundColor: C.green,
     marginHorizontal: 18,
     marginBottom: 8,
-    borderRadius: 20,
+    borderRadius: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 24,
@@ -1215,7 +1517,7 @@ const h = StyleSheet.create({
   welcomeMark: {
     width: 96,
     height: 96,
-    borderRadius: 48,
+    borderRadius: 0,
     backgroundColor: "#5B8050",
     alignItems: "center",
     justifyContent: "center",
@@ -1224,63 +1526,93 @@ const h = StyleSheet.create({
   groupCard: {
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 16,
     marginHorizontal: 18,
-    marginBottom: 12,
+    marginBottom: -1,
     backgroundColor: C.paper,
   },
   root: { flex: 1, backgroundColor: C.bg },
   app: { flex: 1, flexDirection: "row" },
   desktopBar: {
-    minHeight: 92,
-    backgroundColor: C.bg,
+    minHeight: 68,
+    backgroundColor: C.green,
     borderBottomWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(244,242,235,0.16)",
+    justifyContent: "center",
+  },
+  topNav: {
+    height: 68,
+    justifyContent: "center",
+    paddingTop: 2,
+    borderBottomWidth: 2,
+    borderColor: "transparent",
+    marginBottom: -1,
+  },
+  slip: { backgroundColor: C.pink, padding: 28, paddingBottom: 24 },
+  barInner: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 32,
-    gap: 24,
+    gap: 20,
+    paddingHorizontal: 20,
+    width: "100%",
+  },
+  barInnerWide: {
+    maxWidth: 940,
+    alignSelf: "center",
+    paddingLeft: 32,
+    paddingRight: 32,
   },
   brand: { fontSize: 25, fontWeight: "700", color: C.green, letterSpacing: -1 },
   topLabel: { color: C.muted, fontSize: 13 },
-  sidebar: { width: 235, padding: 24, paddingTop: 40 },
+  sidebar: { width: 220, padding: 24, paddingTop: 28 },
   main: { flex: 1, backgroundColor: C.bg, minWidth: 0 },
   toolbar: {
-    height: 72,
+    backgroundColor: C.green,
+    minHeight: 72,
     paddingHorizontal: 20,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   screenName: {
-    fontFamily: serif,
-    fontSize: 28,
-    fontWeight: "400",
-    color: C.ink,
+    fontFamily: display,
+    fontSize: 52,
+    lineHeight: 58,
+    fontWeight: "500",
+    letterSpacing: -0.8,
+    color: C.bg,
     flex: 1,
+    paddingVertical: 20,
   },
-  textAction: { color: C.green, fontSize: 15, fontWeight: "600" },
+  textAction: {
+    color: C.ink,
+    fontSize: 15,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
   iconButton: { padding: 6 },
   search: {
     backgroundColor: C.pale,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 0,
     fontSize: 16,
   },
   navItem: { flex: 1, alignItems: "center", gap: 5, paddingVertical: 10 },
   sideNavItem: {
     flex: 0,
-    minHeight: 48,
+    minHeight: 40,
     flexDirection: "row",
     justifyContent: "flex-start",
     gap: 14,
     padding: 13,
-    borderRadius: 12,
-    marginBottom: 6,
+    paddingLeft: 14,
+    borderLeftWidth: 2,
+    borderColor: "transparent",
+    marginBottom: 2,
   },
   bottomNav: {
     minHeight: 80,
-    backgroundColor: "#fff",
+    backgroundColor: C.paper,
     borderTopWidth: 1,
     borderColor: C.line,
     flexDirection: "row",
@@ -1291,7 +1623,7 @@ const h = StyleSheet.create({
   add: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 0,
     backgroundColor: C.ink,
     alignItems: "center",
     justifyContent: "center",
@@ -1300,37 +1632,43 @@ const h = StyleSheet.create({
   overall: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 22,
-    paddingVertical: 23,
+    backgroundColor: C.pink,
+    marginHorizontal: 18,
+    marginBottom: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 26,
   },
   overallText: {
-    fontSize: 18,
+    fontFamily: display,
+    fontSize: 30,
+    lineHeight: 36,
     fontWeight: "600",
+    letterSpacing: -0.4,
     color: C.ink,
-    lineHeight: 26,
   },
   groupRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 15,
-    paddingHorizontal: 22,
-    paddingVertical: 18,
+    gap: 16,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderColor: C.line,
   },
   groupListAvatar: {
     width: 52,
     height: 52,
-    borderRadius: 8,
+    borderRadius: 0,
     justifyContent: "center",
     alignItems: "center",
   },
-  groupRowTitle: { fontSize: 19, color: C.ink },
-  rowTitle: { fontSize: 16, color: C.ink, lineHeight: 23 },
-  small: { fontSize: 12, color: C.muted, lineHeight: 18 },
+  groupRowTitle: { fontSize: 20, fontWeight: "600", color: C.ink },
+  rowTitle: { fontSize: 17, fontWeight: "500", color: C.ink, lineHeight: 23 },
+  small: { fontSize: 13, color: C.muted, lineHeight: 19 },
   friendAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#E4F0EC",
+    backgroundColor: C.pale,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1339,14 +1677,16 @@ const h = StyleSheet.create({
   emptyIcon: {
     height: 82,
     width: 82,
-    borderRadius: 41,
-    backgroundColor: "#ECF5F1",
+    borderRadius: 0,
+    backgroundColor: C.pale,
     alignItems: "center",
     justifyContent: "center",
   },
   emptyTitle: {
-    fontFamily: serif,
-    fontSize: 29,
+    fontFamily: display,
+    fontSize: 30,
+    fontWeight: "600",
+    letterSpacing: -0.4,
     color: C.ink,
     textAlign: "center",
   },
@@ -1357,7 +1697,7 @@ const h = StyleSheet.create({
     lineHeight: 22,
     maxWidth: 300,
   },
-  cover: { height: 155, backgroundColor: C.green, overflow: "hidden" },
+  cover: { height: 96, backgroundColor: C.green, overflow: "hidden" },
   coverShape: {
     position: "absolute",
     width: 220,
@@ -1376,17 +1716,32 @@ const h = StyleSheet.create({
   groupAvatar: {
     width: 66,
     height: 66,
-    borderRadius: 9,
+    borderRadius: 0,
     backgroundColor: C.green,
     borderWidth: 4,
-    borderColor: "white",
+    borderColor: C.bg,
     marginTop: -35,
     marginBottom: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  groupName: { fontFamily: serif, fontSize: 36, color: C.ink, marginBottom: 8 },
-  balanceLine: { fontSize: 16, color: C.ink, marginBottom: 5 },
+  groupName: {
+    fontFamily: display,
+    fontSize: 44,
+    lineHeight: 50,
+    fontWeight: "600",
+    letterSpacing: -0.5,
+    color: C.bg,
+  },
+  balanceLine: {
+    fontFamily: display,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+    color: C.ink,
+    marginBottom: 5,
+  },
   actions: {
     alignItems: "flex-start",
     paddingHorizontal: 20,
@@ -1395,26 +1750,26 @@ const h = StyleSheet.create({
   },
   action: {
     paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderBottomWidth: 2,
-    borderColor: "#E5E7E6",
-    borderRadius: 12,
+    paddingVertical: 9,
+    borderWidth: 1.5,
+    borderColor: C.rule,
   },
   month: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "600",
     color: C.ink,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 9,
+    paddingTop: 28,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderColor: C.rule,
   },
   expenseRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-    gap: 12,
+    paddingVertical: 14,
+    gap: 16,
+    borderBottomWidth: 1,
+    borderColor: C.line,
   },
   date: { width: 29, alignItems: "center" },
   category: {
@@ -1422,16 +1777,35 @@ const h = StyleSheet.create({
     height: 43,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
+    borderRadius: 0,
   },
-  expenseBalance: { width: 82, alignItems: "flex-end" },
-  section: { padding: 22 },
+  expenseBalance: { minWidth: 96, alignItems: "flex-end" },
+  monthRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingTop: 28,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderColor: C.rule,
+  },
+  monthText: { fontSize: 15, fontWeight: "600", color: C.ink },
+  section: { paddingVertical: 22 },
   sectionTitle: {
-    fontFamily: serif,
-    fontSize: 25,
-    color: C.ink,
+    fontFamily: display,
+    fontSize: 26,
     fontWeight: "600",
+    letterSpacing: -0.2,
+    color: C.ink,
     marginBottom: 8,
+  },
+  accountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderColor: C.line,
   },
   settingRow: {
     flexDirection: "row",
@@ -1454,9 +1828,9 @@ const h = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 15,
-    padding: 20,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderColor: "#F0F2F2",
+    borderColor: C.line,
   },
   activityText: { fontSize: 15, color: C.ink, lineHeight: 22 },
   notice: {
@@ -1465,5 +1839,5 @@ const h = StyleSheet.create({
     padding: 14,
     backgroundColor: C.pale,
   },
-  error: { color: C.red, padding: 16, backgroundColor: "#FFF1E8" },
+  error: { color: C.red, padding: 16, backgroundColor: "#F8DAD4" },
 });

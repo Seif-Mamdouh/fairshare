@@ -156,15 +156,19 @@ export function ExpenseTools({
     <View
       style={{
         gap: 12,
-        marginTop: 20,
-        borderTopWidth: 1,
-        borderColor: C.line,
-        paddingTop: 16,
+        marginTop: 14,
       }}
     >
-      <Text style={{ fontWeight: "700" }}>Expense tools · free</Text>
+      <Text style={{ fontSize: 14, fontWeight: "600", color: C.muted }}>
+        More options
+      </Text>
       <Pills
-        items={["Scan receipt", "Itemize", "Currency", "Defaults"]}
+        items={[
+          { id: "Scan receipt", name: "Scan a receipt" },
+          { id: "Itemize", name: "Itemize" },
+          { id: "Currency", name: "Other currency" },
+          { id: "Defaults", name: "Usual split" },
+        ]}
         value={page}
         onChange={(v: string) => {
           setPage(v === page ? "" : v);
@@ -295,7 +299,7 @@ export function ExpenseTools({
                 padding: 12,
                 borderWidth: 1,
                 borderColor: C.line,
-                borderRadius: 8,
+                borderRadius: 0,
               }}
             >
               <Field

@@ -1,8 +1,15 @@
 import React, { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { appOrigin, copyText } from "./invitations";
-import { Button, C, Pills } from "./components";
+import { Button, C } from "./components";
+import { mono } from "./design";
 import { hostedMcpUrl, oauthMcpConfiguration } from "../shared/onboarding";
+const link = {
+  fontSize: 14,
+  fontWeight: "600" as const,
+  color: C.ink,
+  textDecorationLine: "underline" as const,
+};
 export function OAuthSetup({ onManual }: { onManual: () => void }) {
   const [provider, setProvider] = useState("Codex"),
     [message, setMessage] = useState("");
@@ -17,53 +24,98 @@ export function OAuthSetup({ onManual }: { onManual: () => void }) {
   }
   return (
     <View style={{ gap: 18 }}>
-      <Text style={{ fontSize: 22, fontWeight: "700" }}>
-        Connect with browser authorization
-      </Text>
       <Text style={{ color: C.muted, lineHeight: 23 }}>
-        Add Fairshare in your agent’s MCP settings, then choose Connect or
-        Authenticate. Your browser opens Fairshare so you can sign in, choose a
-        group you own, and authorize access. You return to your agent
-        automatically.
+        Add this address to your assistant, then choose Connect. Your browser
+        opens Fairshare so you can pick a group and approve access. There is no
+        key to copy.
       </Text>
-      <Pills
-        items={["Codex", "Claude", "Other MCP"]}
-        value={provider}
-        onChange={setProvider}
-      />
-      <Text
-        selectable
+      <View
         style={{
-          padding: 16,
-          backgroundColor: C.bg,
-          color: C.green,
-          borderRadius: 8,
+          flexDirection: "row",
+          borderBottomWidth: 1,
+          borderColor: C.rule,
+          gap: 24,
         }}
       >
-        {endpoint}
-      </Text>
-      <Button label="Copy MCP server URL" onPress={() => void copy(endpoint)} />
+        {["Codex", "Claude", "Other MCP"].map((name) => (
+          <Pressable
+            key={name}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: provider === name }}
+            onPress={() => setProvider(name)}
+            style={{
+              paddingVertical: 10,
+              marginBottom: -1,
+              borderBottomWidth: 2,
+              borderColor: provider === name ? C.ink : "transparent",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 15,
+                fontWeight: provider === name ? "600" : "400",
+                color: provider === name ? C.ink : C.muted,
+              }}
+            >
+              {name === "Other MCP" ? "Something else" : name}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <View>
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: "600",
+            color: C.muted,
+            marginBottom: 6,
+          }}
+        >
+          Server address
+        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            borderWidth: 1,
+            borderColor: C.rule,
+            paddingLeft: 14,
+            paddingRight: 8,
+            paddingVertical: 8,
+          }}
+        >
+          <Text
+            selectable
+            numberOfLines={1}
+            style={{ flex: 1, fontFamily: mono, fontSize: 14, color: C.ink }}
+          >
+            {endpoint}
+          </Text>
+          <Button
+            quiet
+            label="Copy"
+            accessibilityLabel="Copy MCP server URL"
+            onPress={() => void copy(endpoint)}
+          />
+        </View>
+      </View>
       {provider === "Codex" && (
-        <Text style={{ lineHeight: 23 }}>
-          In Codex’s MCP settings, add an HTTP server using this URL and sign
-          in. For the CLI, run the commands below. If you previously added a
-          key, remove its bearer-token setting so Codex can start OAuth.
+        <Text style={{ color: C.muted, lineHeight: 23 }}>
+          In Codex’s MCP settings, add an HTTP server with this address and sign
+          in. From the command line:
         </Text>
       )}
       {provider === "Claude" && (
-        <Text style={{ lineHeight: 23 }}>
-          In Claude, add a custom connector with this URL and choose Connect. In
-          Claude Code, add the HTTP server below, then use /mcp → Authenticate.
-          Custom connectors depend on your Claude plan and administrator
-          settings.
+        <Text style={{ color: C.muted, lineHeight: 23 }}>
+          In Claude, add a custom connector with this address and choose
+          Connect. In Claude Code:
         </Text>
       )}
       {provider === "Other MCP" && (
-        <Text style={{ lineHeight: 23 }}>
-          Use a remote MCP client that supports OAuth and dynamic client
-          registration. Add this URL and start authentication. For runtimes such
-          as backend Grok API agents that expect a saved bearer key, use manual
-          access below.
+        <Text style={{ color: C.muted, lineHeight: 23 }}>
+          Any MCP client that supports OAuth works: add this address and start
+          authentication. If yours expects a saved key, use a manual key.
         </Text>
       )}
       {provider !== "Other MCP" && (
@@ -71,42 +123,46 @@ export function OAuthSetup({ onManual }: { onManual: () => void }) {
           <Text
             selectable
             style={{
-              fontFamily: "monospace",
+              fontFamily: mono,
               fontSize: 12,
               lineHeight: 21,
-              backgroundColor: C.bg,
+              backgroundColor: C.pale,
               padding: 16,
-              borderRadius: 8,
+              borderRadius: 0,
             }}
           >
             {oauthMcpConfiguration(appOrigin(), provider)}
           </Text>
-          <Button
-            secondary
-            label="Copy setup commands"
-            onPress={() =>
-              void copy(oauthMcpConfiguration(appOrigin(), provider))
-            }
-          />
+          <View style={{ alignSelf: "flex-start", marginTop: -6 }}>
+            <Button
+              quiet
+              label="Copy commands"
+              accessibilityLabel="Copy setup commands"
+              onPress={() =>
+                void copy(oauthMcpConfiguration(appOrigin(), provider))
+              }
+            />
+          </View>
         </>
       )}
       <Text style={{ color: C.muted, lineHeight: 23 }}>
-        No Fairshare key to copy. Your agent keeps and refreshes its tokens. It
-        can read group member names and submit receipt drafts. Tell it “submit
-        it” to save a draft as an expense and update balances. You can also ask
-        it to correct splits, edit or void its posted expenses, and reject
-        unwanted drafts. Revoke access from this group’s Agent connections.
+        Your assistant can read this group’s member names and draft expenses.
+        Nothing posts until you tell it to, and you can revoke access here at
+        any time.
       </Text>
       {!!message && (
         <Text accessibilityLiveRegion="polite" style={{ color: C.green }}>
           {message}
         </Text>
       )}
-      <Button
-        secondary
-        label="Advanced: create manual key access"
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Advanced: create manual key access"
         onPress={onManual}
-      />
+        style={{ alignSelf: "flex-start" }}
+      >
+        <Text style={link}>Use a manual key instead</Text>
+      </Pressable>
     </View>
   );
 }

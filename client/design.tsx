@@ -12,20 +12,39 @@ import {
 } from "react-native";
 
 export const palette = {
-  bg: "#FCF9F5",
-  paper: "#FFFFFF",
+  bg: "#F4F2EB",
+  paper: "#FFFDF8",
   ink: "#181B18",
-  muted: "#676D65",
-  line: "#E5E7DE",
-  green: "#426B3F",
-  lime: "#DCEAC8",
-  pale: "#EDF3E8",
-  red: "#B54B30",
+  muted: "#55594F",
+  line: "#D6D4C8",
+  rule: "#B9B7AA",
+  green: "#1D3822",
+  // The receipt pink: the one accent, for the thing to look at.
+  lime: "#F5BBB2",
+  pink: "#F5BBB2",
+  pale: "#ECE8DB",
+  red: "#A63A2B",
 };
+/** Web loads Funnel Display / Funnel Sans (see WebPolish); native uses the system face. */
+export const display = Platform.select({
+  web: "'Funnel Display', 'Helvetica Neue', Arial, sans-serif",
+  default: undefined,
+});
+export const sans = Platform.select({
+  web: "'Funnel Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  default: undefined,
+});
+// Headings share the landing page's display face on web; native keeps a system serif.
+/** Line-item figures share the receipt's monospace on web. */
+export const mono = Platform.select({
+  web: "'IBM Plex Mono', ui-monospace, Menlo, monospace",
+  ios: "Menlo",
+  default: "monospace",
+});
 export const serif = Platform.select({
   ios: "Georgia",
   android: "serif",
-  default: "Georgia, 'Times New Roman', serif",
+  default: "'Funnel Display', 'Helvetica Neue', Arial, sans-serif",
 });
 
 /** Finite motion, canceled on unmount or when the OS requests reduced motion. */
@@ -96,27 +115,27 @@ export function Reveal({
 export function Brand({
   compact = false,
   inverse = false,
+  tone,
 }: {
   compact?: boolean;
   inverse?: boolean;
+  tone?: string;
 }) {
-  const color = inverse ? "#F4FAED" : palette.green;
+  const color = tone || (inverse ? "#F4FAED" : palette.green);
   return (
     <View
       accessibilityLabel="Fairshare"
       style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
     >
-      <View
-        accessible={false}
-        style={{ width: 30, height: 30, transform: [{ rotate: "-12deg" }] }}
-      >
+      <View accessible={false} style={{ width: 26, height: 28 }}>
         <View
-          style={[styles.share, { backgroundColor: color, left: 0, top: 0 }]}
+          style={[styles.half, styles.left, { backgroundColor: color, top: 0 }]}
         />
         <View
           style={[
-            styles.share,
-            { backgroundColor: color, right: 0, bottom: 0, opacity: 0.6 },
+            styles.half,
+            styles.right,
+            { backgroundColor: color, top: 4, opacity: 0.55 },
           ]}
         />
       </View>
@@ -124,10 +143,10 @@ export function Brand({
         <Text
           style={{
             color,
-            fontSize: 30,
-            fontWeight: "800",
-            letterSpacing: -1.8,
-            fontStyle: "italic",
+            fontFamily: display,
+            fontSize: 27,
+            fontWeight: "700",
+            letterSpacing: -1.1,
           }}
         >
           fairshare
@@ -159,5 +178,7 @@ export function Eyebrow({
 }
 
 const styles = StyleSheet.create({
-  share: { position: "absolute", width: 20, height: 20, borderRadius: 6 },
+  half: { position: "absolute", width: 12, height: 24 },
+  left: { left: 0, borderTopLeftRadius: 12, borderBottomLeftRadius: 12 },
+  right: { left: 14, borderTopRightRadius: 12, borderBottomRightRadius: 12 },
 });
