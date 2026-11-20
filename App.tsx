@@ -908,7 +908,7 @@ function Main() {
                       alignSelf: "center",
                       backgroundColor: C.pale,
                       padding: 16,
-                      borderRadius: 4,
+                      borderRadius: 0,
                     }}
                   >
                     {icon("file-text", 34, C.green)}
@@ -1167,7 +1167,7 @@ const s = StyleSheet.create({
   logo: {
     width: 40,
     height: 40,
-    borderRadius: 13,
+    borderRadius: 0,
     backgroundColor: C.green,
     alignItems: "center",
     justifyContent: "center",
@@ -1175,7 +1175,7 @@ const s = StyleSheet.create({
   sidebar: {
     width: 244,
     padding: 24,
-    backgroundColor: "#FCFCF9",
+    backgroundColor: C.bg,
     borderRightWidth: 1,
     borderRightColor: C.line,
   },
@@ -1183,14 +1183,14 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderRadius: 10,
+    borderRadius: 0,
     padding: 14,
     minHeight: 48,
   },
   avatar: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 0,
     backgroundColor: C.pale,
     alignItems: "center",
     justifyContent: "center",
@@ -1220,7 +1220,7 @@ const s = StyleSheet.create({
   label: { fontSize: 13, fontWeight: "600", color: C.ink },
   card: {
     backgroundColor: C.paper,
-    borderRadius: 17,
+    borderRadius: 0,
     padding: 24,
     borderWidth: 1,
     borderColor: C.line,
@@ -1236,16 +1236,16 @@ const s = StyleSheet.create({
     minHeight: 46,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 9,
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 11,
     fontSize: 14,
     color: C.ink,
-    backgroundColor: "#FDFEFC",
+    backgroundColor: C.paper,
   },
   button: {
     backgroundColor: C.green,
-    borderRadius: 9,
+    borderRadius: 0,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: "center",
@@ -1254,7 +1254,7 @@ const s = StyleSheet.create({
   secondary: { backgroundColor: C.paper, borderWidth: 1, borderColor: C.line },
   buttonText: { fontWeight: "600", fontSize: 13, color: "white" },
   pill: {
-    borderRadius: 8,
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
@@ -1262,10 +1262,10 @@ const s = StyleSheet.create({
     backgroundColor: C.paper,
   },
   tag: {
-    backgroundColor: "#E7EFD8",
+    backgroundColor: C.pale,
     paddingHorizontal: 9,
     paddingVertical: 6,
-    borderRadius: 5,
+    borderRadius: 0,
     alignSelf: "flex-start",
   },
   listRow: {
@@ -1279,7 +1279,7 @@ const s = StyleSheet.create({
   },
   notice: {
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 0,
     backgroundColor: C.pale,
     flexDirection: "row",
     gap: 10,
@@ -1288,9 +1288,9 @@ const s = StyleSheet.create({
   },
   error: {
     color: C.red,
-    backgroundColor: "#FFF0ED",
+    backgroundColor: "#F8DAD4",
     padding: 14,
-    borderRadius: 8,
+    borderRadius: 0,
     marginBottom: 14,
     fontSize: 13,
     lineHeight: 20,
@@ -1302,14 +1302,19 @@ const s = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 20,
   },
-  modal: { backgroundColor: C.paper, borderRadius: 22, overflow: "hidden" },
+  modal: {
+    backgroundColor: C.paper,
+    borderWidth: 2,
+    borderColor: C.ink,
+    overflow: "hidden",
+  },
   code: {
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     fontSize: 12,
     color: C.green,
     backgroundColor: C.bg,
     padding: 14,
-    borderRadius: 8,
+    borderRadius: 0,
     lineHeight: 20,
   },
 });

@@ -25,14 +25,14 @@ function Bars({ title, rows, currency }: any) {
             <Text>{money(amount, currency)}</Text>
           </View>
           <View
-            style={{ height: 13, backgroundColor: C.pale, borderRadius: 4 }}
+            style={{ height: 13, backgroundColor: C.pale, borderRadius: 0 }}
           >
             <View
               style={{
                 height: 13,
                 width: `${(amount / max) * 100}%`,
                 backgroundColor: C.green,
-                borderRadius: 4,
+                borderRadius: 0,
               }}
             />
           </View>

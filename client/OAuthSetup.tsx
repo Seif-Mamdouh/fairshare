@@ -37,7 +37,7 @@ export function OAuthSetup({ onManual }: { onManual: () => void }) {
           padding: 16,
           backgroundColor: C.bg,
           color: C.green,
-          borderRadius: 8,
+          borderRadius: 0,
         }}
       >
         {endpoint}
@@ -76,7 +76,7 @@ export function OAuthSetup({ onManual }: { onManual: () => void }) {
               lineHeight: 21,
               backgroundColor: C.bg,
               padding: 16,
-              borderRadius: 8,
+              borderRadius: 0,
             }}
           >
             {oauthMcpConfiguration(appOrigin(), provider)}

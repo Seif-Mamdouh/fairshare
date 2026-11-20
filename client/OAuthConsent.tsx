@@ -92,7 +92,7 @@ export function OAuthConsent({
               style={{
                 padding: 14,
                 backgroundColor: C.bg,
-                borderRadius: 10,
+                borderRadius: 0,
                 gap: 8,
               }}
             >
@@ -126,7 +126,7 @@ export function OAuthConsent({
                   padding: 15,
                   borderWidth: 1,
                   borderColor: group === g.id ? C.green : C.line,
-                  borderRadius: 10,
+                  borderRadius: 0,
                   backgroundColor: group === g.id ? C.bg : "white",
                 }}
               >

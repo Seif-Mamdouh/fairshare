@@ -295,7 +295,7 @@ export function ExpenseTools({
                 padding: 12,
                 borderWidth: 1,
                 borderColor: C.line,
-                borderRadius: 8,
+                borderRadius: 0,
               }}
             >
               <Field

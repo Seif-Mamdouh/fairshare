@@ -3,6 +3,7 @@ import { View, Text, Pressable, Platform } from "react-native";
 import { expenseFromForm } from "./expense-form";
 import { api } from "./api";
 import { Button, C, Pills } from "./components";
+import { mono } from "./design";
 import { PlaidConnect } from "./PlaidConnect";
 import { ExpenseEditor } from "./ExpenseEditor";
 import { equalSplit, parseMoney, money, expenseSchema } from "../shared/domain";
@@ -169,7 +170,7 @@ export function Banking({ user, groups, onImported }: any) {
               padding: 14,
               borderWidth: 1,
               borderColor: C.line,
-              borderRadius: 8,
+              borderRadius: 0,
             }}
           >
             <Text>
@@ -207,19 +208,19 @@ export function Banking({ user, groups, onImported }: any) {
             padding: 16,
             borderWidth: 1,
             borderColor: C.line,
-            borderRadius: 10,
+            borderRadius: 0,
             gap: 12,
           }}
         >
           <Text style={{ fontWeight: "700" }}>
-            Bank connection{link.environment === "sandbox" ? " · Sandbox" : ""}
+            Bank connection{link.environment === "sandbox" ? " (sandbox)" : ""}
           </Text>
           {state.accounts
             .filter((a: any) => a.link_id === link.id)
             .map((a: any) => (
               <Text key={a.id}>
                 {a.name}
-                {a.mask ? " · ••" + a.mask : ""}
+                {a.mask ? ", ending " + a.mask : ""}
               </Text>
             ))}
           {!state.accounts.some((a: any) => a.link_id === link.id) && (
@@ -320,41 +321,65 @@ export function Banking({ user, groups, onImported }: any) {
           <View
             key={t.id}
             style={{
-              paddingVertical: 14,
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 12,
+              paddingVertical: 12,
               borderBottomWidth: 1,
               borderColor: C.line,
-              gap: 8,
             }}
           >
-            <Text style={{ fontWeight: "600" }}>{t.name}</Text>
-            <Text>
-              {t.spent_on} ·{" "}
-              {t.currency
-                ? money(Math.abs(t.amount_minor), t.currency)
-                : "Unsupported currency"}
-              {t.amount_minor < 0 ? " credit" : ""}
-            </Text>
-            <Text style={{ color: C.muted }}>
-              {account?.name || "Bank account"}
-              {t.pending
-                ? " · Pending"
-                : t.imported_expense_id
-                  ? " · Already shared"
-                  : " · Posted"}
-            </Text>
-            {canShare && (
-              <Button
-                small
-                secondary
-                label="Review purchase to split"
-                disabled={busy}
-                onPress={() => {
-                  setError("");
-                  setReview(t);
-                  setGroup(null);
+            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+              <Text style={{ fontSize: 16, fontWeight: "600", color: C.ink }}>
+                {t.name}
+              </Text>
+              <Text style={{ fontSize: 13, color: C.muted }}>
+                {t.spent_on}, {account?.name || "Bank account"}
+                {t.pending
+                  ? ", pending"
+                  : t.imported_expense_id
+                    ? ", already shared"
+                    : ""}
+              </Text>
+            </View>
+            <View style={{ alignItems: "flex-end", gap: 4 }}>
+              <Text
+                style={{
+                  fontFamily: mono,
+                  fontSize: 16,
+                  fontWeight: "600",
+                  color: t.amount_minor < 0 ? C.green : C.ink,
                 }}
-              />
-            )}
+              >
+                {t.currency
+                  ? (t.amount_minor < 0 ? "+" : "") +
+                    money(Math.abs(t.amount_minor), t.currency)
+                  : "Unsupported currency"}
+              </Text>
+              {canShare && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Review purchase to split"
+                  disabled={busy}
+                  onPress={() => {
+                    setError("");
+                    setReview(t);
+                    setGroup(null);
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: C.ink,
+                      textDecorationLine: "underline",
+                    }}
+                  >
+                    Split this
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         );
       })}

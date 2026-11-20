@@ -13,14 +13,17 @@ import {
 
 export const palette = {
   bg: "#F4F2EB",
-  paper: "#FFFFFF",
+  paper: "#FFFDF8",
   ink: "#181B18",
-  muted: "#676D65",
-  line: "#E5E7DE",
+  muted: "#55594F",
+  line: "#D6D4C8",
+  rule: "#B9B7AA",
   green: "#1D3822",
-  lime: "#DCEAC8",
-  pale: "#EDF3E8",
-  red: "#B54B30",
+  // The receipt pink: the one accent, for the thing to look at.
+  lime: "#F5BBB2",
+  pink: "#F5BBB2",
+  pale: "#ECE8DB",
+  red: "#A63A2B",
 };
 /** Web loads Funnel Display / Funnel Sans (see WebPolish); native uses the system face. */
 export const display = Platform.select({
@@ -32,6 +35,12 @@ export const sans = Platform.select({
   default: undefined,
 });
 // Headings share the landing page's display face on web; native keeps a system serif.
+/** Line-item figures share the receipt's monospace on web. */
+export const mono = Platform.select({
+  web: "'IBM Plex Mono', ui-monospace, Menlo, monospace",
+  ios: "Menlo",
+  default: "monospace",
+});
 export const serif = Platform.select({
   ios: "Georgia",
   android: "serif",

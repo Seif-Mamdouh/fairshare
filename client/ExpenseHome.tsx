@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { C, icon, Button } from "./components";
 import { ExpenseCharts, ExpenseSearch } from "./ExpenseInsights";
-import { Brand, Eyebrow, useEntrance, serif } from "./design";
+import { Brand, useEntrance, serif, mono, display } from "./design";
 import { money } from "../shared/domain";
 import {
   expenseImpact,
@@ -27,7 +27,8 @@ const categoryIcons: Record<string, string> = {
   Shopping: "gift",
   Other: "file-text",
 };
-const colors = ["#DEF0E5", "#E8DFF2", "#F7E4D8", "#DFE9F3", "#F1DCE3"];
+// Neutral tiles: colour is reserved for money and for the one thing to look at.
+const colors = ["#ECE8DB", "#E4E0D2", "#ECE8DB", "#E4E0D2", "#ECE8DB"];
 function IconButton({ name, label, onPress, color = C.ink }: any) {
   return (
     <Pressable
@@ -45,8 +46,8 @@ function Balance({ amount, currency, large = false }: any) {
     <View style={{ alignItems: "flex-end" }}>
       <Text
         style={{
-          fontSize: 12,
-          color: amount > 0 ? C.green : amount < 0 ? C.red : C.muted,
+          fontSize: 13,
+          color: C.muted,
         }}
       >
         {amount > 0 ? "you are owed" : amount < 0 ? "you owe" : "settled up"}
@@ -54,6 +55,8 @@ function Balance({ amount, currency, large = false }: any) {
       {amount !== 0 && (
         <Text
           style={{
+            fontFamily: mono,
+            fontWeight: "600",
             fontSize: large ? 24 : 18,
             color: amount > 0 ? C.green : C.red,
             marginTop: 2,
@@ -187,11 +190,11 @@ export function ExpenseHome({
         nav === item[0] && desktop && { backgroundColor: C.pale },
       ]}
     >
-      {icon(item[1], desktop ? 21 : 24, nav === item[0] ? C.ink : "#93999B")}
+      {icon(item[1], desktop ? 21 : 24, nav === item[0] ? C.ink : C.muted)}
       <Text
         style={{
           fontSize: desktop ? 15 : 10,
-          color: nav === item[0] ? C.ink : "#93999B",
+          color: nav === item[0] ? C.ink : C.muted,
           fontWeight: nav === item[0] ? "600" : "400",
         }}
       >
@@ -224,7 +227,7 @@ export function ExpenseHome({
       >
         {desktop && (
           <View style={h.sidebar}>
-            <Text style={h.navLabel}>YOUR WORKSPACE</Text>
+            <Text style={h.navLabel}>Your workspace</Text>
             {navItems.map(navButton)}
             <View style={{ marginTop: 24 }}>
               <Button label="+ Add expense" onPress={addExpense} />
@@ -237,7 +240,7 @@ export function ExpenseHome({
             desktop && {
               margin: 24,
               marginLeft: 0,
-              borderRadius: 24,
+              borderRadius: 0,
               borderWidth: 1,
               borderColor: C.line,
               overflow: "hidden",
@@ -312,18 +315,6 @@ export function ExpenseHome({
             {current ? (
               <>
                 <View style={h.cover}>
-                  <View style={h.coverShape} />
-                  <View
-                    style={[
-                      h.coverShape,
-                      {
-                        left: "60%",
-                        top: 15,
-                        backgroundColor: "#7E9B68",
-                        transform: [{ rotate: "-35deg" }],
-                      },
-                    ]}
-                  />
                   <View style={h.coverToolbar}>
                     <IconButton
                       name="arrow-left"
@@ -360,7 +351,7 @@ export function ExpenseHome({
                   </Text>
                   <Text style={h.small}>
                     {group.members.length}{" "}
-                    {group.members.length === 1 ? "person" : "people"} ·{" "}
+                    {group.members.length === 1 ? "person" : "people"},{" "}
                     {group.currency}
                   </Text>
                 </View>
@@ -385,15 +376,16 @@ export function ExpenseHome({
                       style={[
                         h.action,
                         i === 0 && {
-                          backgroundColor: C.red,
-                          borderColor: C.red,
+                          backgroundColor: C.ink,
+                          borderColor: C.ink,
                         },
                       ]}
                     >
                       <Text
                         style={{
                           fontSize: 15,
-                          color: i === 0 ? "white" : C.ink,
+                          fontWeight: "600",
+                          color: i === 0 ? C.bg : C.ink,
                         }}
                       >
                         {label}
@@ -490,7 +482,7 @@ export function ExpenseHome({
                                   {icon(
                                     categoryIcons[e.category] || "file-text",
                                     25,
-                                    "#5A6666",
+                                    C.ink,
                                   )}
                                 </View>
                                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -507,13 +499,8 @@ export function ExpenseHome({
                                 <View style={h.expenseBalance}>
                                   <Text
                                     style={{
-                                      fontSize: 11,
-                                      color:
-                                        net > 0
-                                          ? C.green
-                                          : net < 0
-                                            ? C.red
-                                            : C.muted,
+                                      fontSize: 13,
+                                      color: C.muted,
                                     }}
                                   >
                                     {net > 0
@@ -525,7 +512,9 @@ export function ExpenseHome({
                                   {net !== 0 && (
                                     <Text
                                       style={{
-                                        fontSize: 17,
+                                        fontFamily: mono,
+                                        fontWeight: "600",
+                                        fontSize: 18,
                                         color: net > 0 ? C.green : C.red,
                                       }}
                                     >
@@ -641,7 +630,7 @@ export function ExpenseHome({
                           <Text style={h.small}>
                             {m.user_id
                               ? "Joined this group"
-                              : "Tracked by name · not joined"}
+                              : "Tracked by name, not joined"}
                           </Text>
                         </View>
                       </View>
@@ -736,7 +725,7 @@ export function ExpenseHome({
                       <View key={r.id} style={h.receipt}>
                         <Text style={h.rowTitle}>{r.payload.title}</Text>
                         <Text style={h.small}>
-                          {money(r.payload.amountMinor, group.currency)} ·{" "}
+                          {money(r.payload.amountMinor, group.currency)},{" "}
                           {r.status}
                         </Text>
                         {r.status === "pending" && (
@@ -826,26 +815,6 @@ export function ExpenseHome({
               </>
             ) : nav === "Groups" ? (
               <>
-                <View style={[h.welcome, { padding: desktop ? 32 : 24 }]}>
-                  <View style={{ flex: 1, minWidth: 0, gap: 13 }}>
-                    <Eyebrow light>THE GOOD KIND OF SHARED HISTORY</Eyebrow>
-                    <Text
-                      accessibilityRole="header"
-                      style={[h.welcomeTitle, { fontSize: desktop ? 43 : 34 }]}
-                    >
-                      More together.{"\n"}Less to keep track of.
-                    </Text>
-                    <Text style={h.welcomeBody}>
-                      Every trip, every dinner, every little thing. All in one
-                      place.
-                    </Text>
-                  </View>
-                  {desktop && (
-                    <View style={h.welcomeMark}>
-                      <Brand compact inverse />
-                    </View>
-                  )}
-                </View>
                 <View style={h.overall}>
                   <View style={{ flex: 1 }}>
                     {Object.entries(totals).length ? (
@@ -857,7 +826,7 @@ export function ExpenseHome({
                             : amount > 0
                               ? "you are owed "
                               : "you owe "}
-                          <Text style={{ color: amount > 0 ? C.green : C.red }}>
+                          <Text>
                             {amount !== 0
                               ? money(Math.abs(amount), currency)
                               : ""}
@@ -907,9 +876,7 @@ export function ExpenseHome({
                       style={[
                         h.groupListAvatar,
                         {
-                          backgroundColor: ["#53774B", "#87715C", "#647B80"][
-                            i % 3
-                          ],
+                          backgroundColor: [C.green, C.green, C.green][i % 3],
                         },
                       ]}
                     >
@@ -921,9 +888,12 @@ export function ExpenseHome({
                       </Text>
                       <Text style={[h.small, { marginTop: 5 }]}>
                         {g.members.length}{" "}
-                        {g.members.length === 1 ? "person" : "people"} ·{" "}
+                        {g.members.length === 1 ? "person" : "people"},{" "}
                         {g.expenses.filter((e: any) => !e.voided_at).length}{" "}
-                        expenses
+                        {g.expenses.filter((e: any) => !e.voided_at).length ===
+                        1
+                          ? "expense"
+                          : "expenses"}
                       </Text>
                     </View>
                     <Balance amount={balance(g)} currency={g.currency} />
@@ -1033,7 +1003,7 @@ export function ExpenseHome({
                           style={h.activityRow}
                         >
                           <View
-                            style={[h.category, { backgroundColor: "#E3EDE7" }]}
+                            style={[h.category, { backgroundColor: C.pale }]}
                           >
                             {icon(
                               a.kind === "expense"
@@ -1103,7 +1073,7 @@ export function ExpenseHome({
                     <Text style={h.small}>Private account</Text>
                   </View>
                 </View>
-                <Text style={h.sectionStrip}>WORKSPACE</Text>
+                <Text style={h.sectionStrip}>Your account</Text>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => onOpen("Search expenses")}
@@ -1159,7 +1129,7 @@ export function ExpenseHome({
                     : "Sign in with your phone number and password to access the same private account from any device."}
                 </Text>
                 <Text style={{ padding: 20, color: C.muted, fontSize: 12 }}>
-                  Fairshare · shared expenses for your people
+                  Fairshare, shared expenses for your people.
                 </Text>
               </View>
             )}
@@ -1186,16 +1156,15 @@ export function ExpenseHome({
 const h = StyleSheet.create({
   navLabel: {
     color: C.muted,
-    fontSize: 9,
-    letterSpacing: 1.5,
-    fontWeight: "700",
-    marginBottom: 24,
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 16,
   },
   welcome: {
     backgroundColor: C.green,
     marginHorizontal: 18,
     marginBottom: 8,
-    borderRadius: 20,
+    borderRadius: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 24,
@@ -1215,7 +1184,7 @@ const h = StyleSheet.create({
   welcomeMark: {
     width: 96,
     height: 96,
-    borderRadius: 48,
+    borderRadius: 0,
     backgroundColor: "#5B8050",
     alignItems: "center",
     justifyContent: "center",
@@ -1224,9 +1193,8 @@ const h = StyleSheet.create({
   groupCard: {
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 16,
     marginHorizontal: 18,
-    marginBottom: 12,
+    marginBottom: -1,
     backgroundColor: C.paper,
   },
   root: { flex: 1, backgroundColor: C.bg },
@@ -1253,18 +1221,24 @@ const h = StyleSheet.create({
     gap: 12,
   },
   screenName: {
-    fontFamily: serif,
-    fontSize: 28,
-    fontWeight: "400",
+    fontFamily: display,
+    fontSize: 30,
+    fontWeight: "600",
+    letterSpacing: -0.4,
     color: C.ink,
     flex: 1,
   },
-  textAction: { color: C.green, fontSize: 15, fontWeight: "600" },
+  textAction: {
+    color: C.ink,
+    fontSize: 15,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
   iconButton: { padding: 6 },
   search: {
     backgroundColor: C.pale,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 0,
     fontSize: 16,
   },
   navItem: { flex: 1, alignItems: "center", gap: 5, paddingVertical: 10 },
@@ -1275,12 +1249,12 @@ const h = StyleSheet.create({
     justifyContent: "flex-start",
     gap: 14,
     padding: 13,
-    borderRadius: 12,
+    borderRadius: 0,
     marginBottom: 6,
   },
   bottomNav: {
     minHeight: 80,
-    backgroundColor: "#fff",
+    backgroundColor: C.paper,
     borderTopWidth: 1,
     borderColor: C.line,
     flexDirection: "row",
@@ -1291,7 +1265,7 @@ const h = StyleSheet.create({
   add: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 0,
     backgroundColor: C.ink,
     alignItems: "center",
     justifyContent: "center",
@@ -1300,14 +1274,19 @@ const h = StyleSheet.create({
   overall: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 22,
-    paddingVertical: 23,
+    backgroundColor: C.pink,
+    marginHorizontal: 18,
+    marginBottom: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 26,
   },
   overallText: {
-    fontSize: 18,
+    fontFamily: display,
+    fontSize: 30,
+    lineHeight: 36,
     fontWeight: "600",
+    letterSpacing: -0.4,
     color: C.ink,
-    lineHeight: 26,
   },
   groupRow: {
     flexDirection: "row",
@@ -1319,18 +1298,18 @@ const h = StyleSheet.create({
   groupListAvatar: {
     width: 52,
     height: 52,
-    borderRadius: 8,
+    borderRadius: 0,
     justifyContent: "center",
     alignItems: "center",
   },
-  groupRowTitle: { fontSize: 19, color: C.ink },
-  rowTitle: { fontSize: 16, color: C.ink, lineHeight: 23 },
-  small: { fontSize: 12, color: C.muted, lineHeight: 18 },
+  groupRowTitle: { fontSize: 19, fontWeight: "600", color: C.ink },
+  rowTitle: { fontSize: 17, fontWeight: "600", color: C.ink, lineHeight: 23 },
+  small: { fontSize: 13, color: C.muted, lineHeight: 19 },
   friendAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#E4F0EC",
+    backgroundColor: C.pale,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1339,14 +1318,16 @@ const h = StyleSheet.create({
   emptyIcon: {
     height: 82,
     width: 82,
-    borderRadius: 41,
-    backgroundColor: "#ECF5F1",
+    borderRadius: 0,
+    backgroundColor: C.pale,
     alignItems: "center",
     justifyContent: "center",
   },
   emptyTitle: {
-    fontFamily: serif,
-    fontSize: 29,
+    fontFamily: display,
+    fontSize: 30,
+    fontWeight: "600",
+    letterSpacing: -0.4,
     color: C.ink,
     textAlign: "center",
   },
@@ -1357,7 +1338,7 @@ const h = StyleSheet.create({
     lineHeight: 22,
     maxWidth: 300,
   },
-  cover: { height: 155, backgroundColor: C.green, overflow: "hidden" },
+  cover: { height: 96, backgroundColor: C.green, overflow: "hidden" },
   coverShape: {
     position: "absolute",
     width: 220,
@@ -1376,17 +1357,33 @@ const h = StyleSheet.create({
   groupAvatar: {
     width: 66,
     height: 66,
-    borderRadius: 9,
+    borderRadius: 0,
     backgroundColor: C.green,
     borderWidth: 4,
-    borderColor: "white",
+    borderColor: C.bg,
     marginTop: -35,
     marginBottom: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  groupName: { fontFamily: serif, fontSize: 36, color: C.ink, marginBottom: 8 },
-  balanceLine: { fontSize: 16, color: C.ink, marginBottom: 5 },
+  groupName: {
+    fontFamily: display,
+    fontSize: 40,
+    lineHeight: 44,
+    fontWeight: "600",
+    letterSpacing: -0.9,
+    color: C.ink,
+    marginBottom: 8,
+  },
+  balanceLine: {
+    fontFamily: display,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+    color: C.ink,
+    marginBottom: 5,
+  },
   actions: {
     alignItems: "flex-start",
     paddingHorizontal: 20,
@@ -1395,16 +1392,14 @@ const h = StyleSheet.create({
   },
   action: {
     paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderBottomWidth: 2,
-    borderColor: "#E5E7E6",
-    borderRadius: 12,
+    paddingVertical: 9,
+    borderWidth: 1.5,
+    borderColor: C.rule,
   },
   month: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    color: C.ink,
+    color: C.muted,
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 9,
@@ -1415,6 +1410,8 @@ const h = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 18,
     gap: 12,
+    borderTopWidth: 1,
+    borderColor: C.line,
   },
   date: { width: 29, alignItems: "center" },
   category: {
@@ -1422,15 +1419,16 @@ const h = StyleSheet.create({
     height: 43,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
+    borderRadius: 0,
   },
-  expenseBalance: { width: 82, alignItems: "flex-end" },
+  expenseBalance: { minWidth: 110, alignItems: "flex-end" },
   section: { padding: 22 },
   sectionTitle: {
-    fontFamily: serif,
-    fontSize: 25,
-    color: C.ink,
+    fontFamily: display,
+    fontSize: 26,
     fontWeight: "600",
+    letterSpacing: -0.2,
+    color: C.ink,
     marginBottom: 8,
   },
   settingRow: {
@@ -1456,7 +1454,7 @@ const h = StyleSheet.create({
     gap: 15,
     padding: 20,
     borderBottomWidth: 1,
-    borderColor: "#F0F2F2",
+    borderColor: C.line,
   },
   activityText: { fontSize: 15, color: C.ink, lineHeight: 22 },
   notice: {
@@ -1465,5 +1463,5 @@ const h = StyleSheet.create({
     padding: 14,
     backgroundColor: C.pale,
   },
-  error: { color: C.red, padding: 16, backgroundColor: "#FFF1E8" },
+  error: { color: C.red, padding: 16, backgroundColor: "#F8DAD4" },
 });

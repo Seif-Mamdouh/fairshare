@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   heading: { fontSize: 21, fontWeight: "600", color: C.ink },
   title: { fontSize: 15, fontWeight: "600", color: C.ink },
   body: { fontSize: 13, lineHeight: 22, color: C.muted },
-  box: { padding: 16, backgroundColor: C.bg, borderRadius: 12, gap: 12 },
+  box: { padding: 16, backgroundColor: C.bg, borderRadius: 0, gap: 12 },
   row: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
   code: {
     fontFamily: "monospace",
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     color: C.green,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 8,
+    borderRadius: 0,
     padding: 12,
     lineHeight: 19,
   },
