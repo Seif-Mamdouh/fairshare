@@ -16,6 +16,7 @@ import {
   money,
   categories,
 } from "../shared/domain";
+import { display } from "./design";
 import { ExpenseTools } from "./ExpenseTools";
 export function ExpenseEditor({
   form,
@@ -214,45 +215,34 @@ export function ExpenseEditor({
           Receipt from {form.source}. Check the details before approving.
         </Text>
       )}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Choose people sharing this expense"
-        onPress={() => setPage("split")}
-        style={s.withRow}
-      >
-        <Text style={s.person}>With you and:</Text>
-        <View style={s.groupChip}>
-          {icon("users", 17, C.green)}
-          <Text numberOfLines={1} style={{ color: C.ink, flexShrink: 1 }}>
-            {group.name}
+      <View style={s.form}>
+        <Text style={s.fieldLabel}>What was it for?</Text>
+        <TextInput
+          accessibilityLabel="What was it for?"
+          placeholder="Enter a description"
+          placeholderTextColor={C.muted}
+          value={form.title}
+          onChangeText={(v) => set("title", v)}
+          style={s.description}
+        />
+        <Text style={[s.fieldLabel, { marginTop: 22 }]}>
+          Amount in {group.currency}
+        </Text>
+        <View style={s.amountRow}>
+          <Text style={s.amountSign}>
+            {group.currency === "USD"
+              ? "$"
+              : group.currency === "EUR"
+                ? "€"
+                : group.currency === "GBP"
+                  ? "£"
+                  : group.currency}
           </Text>
-        </View>
-      </Pressable>
-      <View style={s.entry}>
-        <View style={s.row}>
-          <View style={[s.entryIcon, { backgroundColor: "#DCEADF" }]}>
-            {icon("file-text", 28)}
-          </View>
-          <TextInput
-            accessibilityLabel="What was it for?"
-            placeholder="Enter a description"
-            placeholderTextColor="#969A9B"
-            value={form.title}
-            onChangeText={(v) => set("title", v)}
-            style={s.description}
-          />
-        </View>
-        <View style={s.row}>
-          <View style={s.entryIcon}>
-            <Text style={{ fontSize: 26, fontWeight: "600" }}>
-              {group.currency === "USD" ? "$" : group.currency}
-            </Text>
-          </View>
           <TextInput
             accessibilityLabel={`Amount (${group.currency})`}
             editable={!lockedAmount}
             placeholder="0.00"
-            placeholderTextColor="#969A9B"
+            placeholderTextColor={C.rule}
             value={form.amount}
             onChangeText={(v) =>
               setForm((f: any) => ({
@@ -270,11 +260,11 @@ export function ExpenseEditor({
           accessibilityRole="button"
           accessibilityLabel="Choose payer and split"
           onPress={() => setPage("split")}
-          style={s.splitButton}
+          style={s.choice}
         >
-          <Text style={{ fontSize: 16, color: C.ink, textAlign: "center" }}>
-            Paid by <Text style={{ fontWeight: "600" }}>{payer}</Text> and split{" "}
-            <Text style={{ fontWeight: "600" }}>
+          <Text style={s.choiceText}>
+            Paid by <Text style={s.strong}>{payer}</Text>, split{" "}
+            <Text style={s.strong}>
               {form.splitMode === "Equal"
                 ? "equally"
                 : form.splitMode === "Saved proportions"
@@ -282,13 +272,38 @@ export function ExpenseEditor({
                   : "by exact amounts"}
             </Text>
           </Text>
+          {icon("chevron-right", 18, C.muted)}
         </Pressable>
-        <Text style={[s.muted, { textAlign: "center", marginTop: 10 }]}>
-          {form.audience === "Whole group"
-            ? "Whole group"
-            : `${form.participants.length} selected people`}{" "}
-          · {form.participants.length} people
-        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Choose people sharing this expense"
+          onPress={() => setPage("split")}
+          style={s.choice}
+        >
+          <Text style={s.choiceText}>
+            Between{" "}
+            <Text style={s.strong}>
+              {form.audience === "Whole group"
+                ? "everyone in " + group.name
+                : `${form.participants.length} selected people`}
+            </Text>{" "}
+            ({form.participants.length}{" "}
+            {form.participants.length === 1 ? "person" : "people"})
+          </Text>
+          {icon("chevron-right", 18, C.muted)}
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Change date and category"
+          onPress={() => setPage("details")}
+          style={s.choice}
+        >
+          <Text style={s.choiceText}>
+            On <Text style={s.strong}>{prettyDate(form.spentOn)}</Text>, filed
+            under <Text style={s.strong}>{form.category}</Text>
+          </Text>
+          {icon("chevron-right", 18, C.muted)}
+        </Pressable>
       </View>
       {image && (
         <Image
@@ -310,40 +325,68 @@ export function ExpenseEditor({
           onDefaultsChanged={onDefaultsChanged}
         />
       )}
-      <View style={{ flex: 1, minHeight: 30 }} />
-      <View style={s.bottom}>
+      {receipt && (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Change date and category"
-          onPress={() => setPage("details")}
-          style={s.row}
+          accessibilityLabel="Attach receipt image"
+          onPress={onPickImage}
+          style={[s.choice, { marginHorizontal: 20 }]}
         >
-          {icon("calendar", 22, "#587181")}
-          <Text style={s.muted}>{form.spentOn}</Text>
+          <Text style={s.choiceText}>Receipt photo</Text>
+          <Text style={s.change}>Attach</Text>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Change expense category"
-          onPress={() => setPage("details")}
-          style={s.row}
-        >
-          {icon("tag", 21, C.red)}
-          <Text style={s.muted}>{form.category}</Text>
-        </Pressable>
-        {receipt && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Attach receipt image"
-            onPress={onPickImage}
-          >
-            {icon("camera", 24, "#9574AC")}
-          </Pressable>
-        )}
-      </View>
+      )}
     </View>
   );
 }
+const prettyDate = (iso: string) => {
+  const d = new Date(iso + "T12:00:00");
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+};
 const s = StyleSheet.create({
+  form: { paddingTop: 8, paddingBottom: 8 },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: C.muted,
+    marginBottom: 6,
+  },
+  amountRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 2,
+    borderBottomWidth: 1,
+    borderColor: C.rule,
+    marginBottom: 22,
+  },
+  amountSign: {
+    fontFamily: display,
+    fontSize: 44,
+    fontWeight: "600",
+    color: C.ink,
+  },
+  choice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderColor: C.line,
+  },
+  choiceText: { flex: 1, fontSize: 16, lineHeight: 22, color: C.ink },
+  strong: { fontWeight: "600" },
+  change: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: C.ink,
+    textDecorationLine: "underline",
+  },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: {
     flexDirection: "row",
@@ -418,25 +461,21 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   description: {
-    minWidth: 0,
-    width: 0,
-    fontSize: 22,
+    fontSize: 20,
     color: C.ink,
-    borderBottomWidth: 1,
-    borderColor: "#636868",
-    flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1.5,
+    borderColor: C.rule,
   },
   amount: {
-    minWidth: 0,
-    width: 0,
-    fontSize: 34,
-    fontWeight: "600",
-    color: C.ink,
-    borderBottomWidth: 2,
-    borderColor: C.green,
     flex: 1,
-    paddingVertical: 6,
+    minWidth: 0,
+    fontFamily: display,
+    fontSize: 44,
+    fontWeight: "600",
+    letterSpacing: -1,
+    color: C.ink,
+    paddingVertical: 4,
   },
   splitButton: {
     alignSelf: "center",

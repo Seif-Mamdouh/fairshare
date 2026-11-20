@@ -12,12 +12,16 @@ export function Button({
   secondary = false,
   disabled = false,
   small = false,
+  quiet = false,
+  accent = false,
+  inverse = false,
+  accessibilityLabel,
 }: any) {
   const [hovered, setHovered] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel || label}
       onPress={onPress}
       disabled={disabled}
       accessibilityState={{ disabled: !!disabled }}
@@ -26,17 +30,41 @@ export function Button({
       style={({ pressed }) => [
         s.button,
         secondary && s.secondary,
-        small && { paddingVertical: 10, paddingHorizontal: 14 },
+        small && { minHeight: 40, paddingVertical: 8, paddingHorizontal: 16 },
+        quiet && s.quiet,
+        accent && { backgroundColor: C.pink, borderColor: C.pink },
+        inverse && { backgroundColor: "transparent", borderColor: C.bg },
         hovered &&
           !disabled && {
-            backgroundColor: secondary ? C.pale : C.green,
-            borderColor: secondary ? C.ink : C.green,
+            backgroundColor: inverse
+              ? "rgba(244,242,235,0.14)"
+              : accent
+                ? C.bg
+                : secondary || quiet
+                  ? C.pale
+                  : C.ink,
+            borderColor: inverse
+              ? C.bg
+              : accent
+                ? C.bg
+                : quiet || secondary
+                  ? C.ink
+                  : C.ink,
           },
         pressed && { transform: [{ scale: 0.98 }] },
         disabled && { opacity: 0.45 },
       ]}
     >
-      <Text style={[s.buttonText, secondary && { color: C.ink }]}>{label}</Text>
+      <Text
+        style={[
+          s.buttonText,
+          (secondary || quiet || accent) && { color: C.ink },
+          inverse && { color: C.bg },
+          quiet && { fontSize: 13 },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -106,16 +134,24 @@ export function Tag({ text }: any) {
 
 const s = StyleSheet.create({
   button: {
-    backgroundColor: C.ink,
-    minHeight: 48,
-    borderWidth: 2,
-    borderColor: C.ink,
-    paddingVertical: 12,
+    backgroundColor: C.green,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: C.green,
+    paddingVertical: 11,
     paddingHorizontal: 20,
     alignItems: "center",
     justifyContent: "center",
   },
   secondary: { backgroundColor: "transparent" },
+  quiet: {
+    backgroundColor: "transparent",
+    minHeight: 32,
+    borderWidth: 1,
+    borderColor: C.ink,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+  },
   buttonText: { fontWeight: "600", fontSize: 15, color: C.bg },
   label: { fontSize: 14, fontWeight: "600", color: C.ink },
   input: {
@@ -131,10 +167,9 @@ const s = StyleSheet.create({
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   pill: {
     paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderWidth: 1.5,
-    borderColor: C.rule,
-    backgroundColor: "transparent",
+    paddingVertical: 8,
+    borderWidth: 0,
+    backgroundColor: C.pale,
   },
   card: {
     backgroundColor: C.paper,

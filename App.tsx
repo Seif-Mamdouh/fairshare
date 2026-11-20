@@ -298,7 +298,7 @@ function Main() {
         group?.members.find((m: any) => m.user_id === user.id)?.id ||
         group?.members[0]?.id,
       spentOn: today(),
-      category: "Food & drink",
+      category: "Other",
       audience: "Whole group",
       splitMode: "Equal",
       participants: group?.members.map((m: any) => m.id) || [],
@@ -466,6 +466,7 @@ function Main() {
   const me = group?.members.find((m: any) => m.user_id === user?.id);
   const myBalance = group?.balances[me?.id] || 0;
   const owner = group?.owner_id === user?.id;
+  const panel = wide;
   const isExpense = [
     "Add expense",
     "Submit receipt",
@@ -624,14 +625,28 @@ function Main() {
           if (!busy) closeModal();
         }}
       >
-        <SafeAreaView style={[s.overlay, !wide && { paddingVertical: 0 }]}>
+        <SafeAreaView
+          style={[
+            s.overlay,
+            !wide && { paddingVertical: 0 },
+            panel && { alignItems: "flex-end", paddingVertical: 0 },
+          ]}
+        >
           <View
             style={[
               s.modal,
               {
-                maxHeight: wide ? "92%" : "100%",
+                maxHeight: wide ? "86%" : "100%",
                 width: wide ? 540 : width,
                 ...(!wide ? { height: "100%", borderRadius: 0 } : {}),
+              },
+              panel && {
+                width: 560,
+                height: "100%",
+                maxHeight: "100%",
+                borderWidth: 0,
+                borderLeftWidth: 1,
+                borderColor: C.ink,
               },
             ]}
           >
@@ -639,10 +654,10 @@ function Main() {
               style={[
                 s.between,
                 {
+                  flexDirection: "row-reverse",
                   paddingHorizontal: 20,
-                  paddingVertical: 18,
-                  borderBottomWidth: 1,
-                  borderColor: C.line,
+                  paddingVertical: 20,
+                  backgroundColor: C.green,
                   gap: 16,
                 },
               ]}
@@ -653,42 +668,22 @@ function Main() {
                 disabled={busy}
                 onPress={closeModal}
               >
-                {icon("x", 26, C.ink)}
+                {icon("x", 22, C.bg)}
               </Pressable>
               <Text
                 style={[
                   s.heading,
-                  { fontSize: 19, flex: 1, textAlign: "center" },
+                  { fontSize: 22, flex: 1, textAlign: "left", color: C.bg },
                 ]}
               >
-                {modal === "Add expense" ? "Add an expense" : modal}
+                {modal === "Add expense"
+                  ? "Add an expense"
+                  : modal === "Connect an agent"
+                    ? "Connect an assistant"
+                    : modal === "Banks"
+                      ? "Bank transactions"
+                      : modal}
               </Text>
-              {isExpense || modal === "Record payment" ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    modal === "Review receipt"
-                      ? "Approve receipt"
-                      : modal === "Record payment"
-                        ? "Save payment"
-                        : "Save expense"
-                  }
-                  disabled={busy}
-                  onPress={() => void submit()}
-                >
-                  <Text
-                    style={{ color: C.green, fontSize: 16, fontWeight: "600" }}
-                  >
-                    {busy
-                      ? "Saving…"
-                      : modal === "Review receipt"
-                        ? "Approve"
-                        : "Save"}
-                  </Text>
-                </Pressable>
-              ) : (
-                <View style={{ width: 26 }} />
-              )}
             </View>
             <ScrollView
               contentContainerStyle={{ padding: 20, flexGrow: 1 }}
@@ -1147,6 +1142,70 @@ function Main() {
                   </View>
                 )}
             </ScrollView>
+            {(isExpense || modal === "Record payment") && (
+              <View
+                style={{
+                  padding: 20,
+                  backgroundColor:
+                    modal === "Add expense" ? C.pink : "transparent",
+                }}
+              >
+                {modal === "Add expense" &&
+                  form.splitMode === "Equal" &&
+                  Object.keys(equalShares).length > 1 && (
+                    <View style={{ marginBottom: 16 }}>
+                      {Object.entries(equalShares)
+                        .sort(([a]) => (a === me?.id ? -1 : 0))
+                        .map(([id, minor]) => (
+                          <View
+                            key={id}
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              paddingVertical: 7,
+                            }}
+                          >
+                            <Text style={{ fontSize: 16, color: C.ink }}>
+                              {id === me?.id
+                                ? "Your share"
+                                : (group?.members.find((m: any) => m.id === id)
+                                    ?.name || "Member") + " owes you"}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                fontWeight: "600",
+                                color: C.ink,
+                              }}
+                            >
+                              {money(minor, group?.currency || "USD")}
+                            </Text>
+                          </View>
+                        ))}
+                    </View>
+                  )}
+                <Button
+                  label={
+                    busy
+                      ? "Saving…"
+                      : modal === "Review receipt"
+                        ? "Approve receipt"
+                        : modal === "Record payment"
+                          ? "Save payment"
+                          : "Save expense"
+                  }
+                  accessibilityLabel={
+                    modal === "Review receipt"
+                      ? "Approve receipt"
+                      : modal === "Record payment"
+                        ? "Save payment"
+                        : "Save expense"
+                  }
+                  disabled={busy}
+                  onPress={() => void submit()}
+                />
+              </View>
+            )}
           </View>
         </SafeAreaView>
       </Modal>
@@ -1297,15 +1356,15 @@ const s = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(24,35,24,0.30)",
+    backgroundColor: "rgba(84,70,40,0.22)",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 20,
   },
   modal: {
     backgroundColor: C.paper,
-    borderWidth: 2,
-    borderColor: C.ink,
+    borderWidth: 1,
+    borderColor: C.rule,
     overflow: "hidden",
   },
   code: {
