@@ -153,8 +153,18 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
     );
 
   const big = desktop
-    ? { fontSize: 88, lineHeight: 92, letterSpacing: -2.3 }
+    ? { fontSize: 104, lineHeight: 106, letterSpacing: -3 }
     : { fontSize: 40, lineHeight: 43, letterSpacing: -0.9 };
+  const head = (title: string, text: string, onPaper = false) => (
+    <View style={row}>
+      <View style={left}>
+        <Text style={[s.partTitle, onPaper && { color: L.ink }]}>{title}</Text>
+      </View>
+      <View style={right}>
+        <Text style={[s.partText, onPaper && { color: L.soft }]}>{text}</Text>
+      </View>
+    </View>
+  );
   return (
     <ScrollView
       ref={scroll}
@@ -195,13 +205,7 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
             dinner.
           </Text>
         </Reveal>
-        <View
-          style={[
-            row,
-            { marginTop: desktop ? 36 : 24 },
-            desktop && { alignItems: "stretch" },
-          ]}
-        >
+        <View style={[row, { marginTop: desktop ? 44 : 24 }]}>
           <View style={left}>
             <Text style={s.intro}>
               Fairshare keeps one running tab for your household or your trip.
@@ -210,14 +214,13 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
             </Text>
             <View style={s.actions}>
               <Action label="Create an account" onPress={() => go("sign-up")} />
-              <Action line label="See what it does" onPress={toParts} />
+              <Text style={s.free}>
+                Free and open source.{`\n`}Every feature included.
+              </Text>
             </View>
-            <Text style={s.free}>
-              Free and open source. Every feature included.
-            </Text>
           </View>
           <View
-            style={[right, { justifyContent: "flex-end" }]}
+            style={right}
             accessibilityLabel="Example: one month of shared costs for three people"
           >
             <Text style={s.ledgerHead}>
@@ -230,12 +233,13 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
               >
                 <Text style={s.ledgerTitle}>{title}</Text>
                 <Text style={s.ledgerMeta}>{narrow ? "" : meta}</Text>
-                <Text style={[s.figure, i > 0 && s.debit]}>{amount}</Text>
+                <Text style={s.figure}>{amount}</Text>
               </View>
             ))}
-            <View style={s.sumRule} />
           </View>
         </View>
+        {/* The sum line runs the full measure: both columns resolve into the pink. */}
+        <View style={s.sumRule} />
       </View>
       <View style={s.pinkBand}>
         <View
@@ -243,25 +247,24 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
             s.sumInner,
             { paddingHorizontal: pad },
             row,
-            desktop && { alignItems: "flex-end" },
             !desktop && { flexDirection: "column-reverse" },
           ]}
         >
           <View style={left}>
-            <Text style={[s.label, { marginBottom: 12 }]}>
+            <Text style={[s.label, { marginTop: 24, marginBottom: 18 }]}>
               Two payments settle it
             </Text>
             <View style={s.pay}>
               <Text style={s.ledgerTitle}>Maya pays you</Text>
-              <Text style={s.figure}>$933.90</Text>
+              <Text style={[s.figure, s.payBig]}>$933.90</Text>
             </View>
             <View style={[s.pay, { borderBottomWidth: 1 }]}>
               <Text style={s.ledgerTitle}>Theo pays you</Text>
-              <Text style={s.figure}>$895.80</Text>
+              <Text style={[s.figure, s.payBig]}>$895.80</Text>
             </View>
           </View>
           <View style={right}>
-            <Text style={[s.label, { marginTop: 22 }]}>Owed to you</Text>
+            <Text style={[s.label, { marginTop: 24 }]}>Owed to you</Text>
             <Text
               style={[
                 s.sumTotal,
@@ -279,7 +282,7 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
         </View>
       </View>
 
-      {/* The three places it goes wrong. Heading left, explanation right, then the artifact. */}
+      {/* The three places it goes wrong: heading left, explanation right, then the working. */}
       <View
         style={s.band}
         onLayout={(event) => {
@@ -287,33 +290,16 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
         }}
       >
         <View style={[s.bandInner, { paddingHorizontal: pad }]}>
-          <Text
-            style={[
-              s.title,
-              { color: L.onDeep },
-              desktop
-                ? { fontSize: 68, lineHeight: 72, letterSpacing: -1.6 }
-                : { fontSize: 34, lineHeight: 38, letterSpacing: -0.6 },
-            ]}
-          >
-            The parts that usually{desktop ? `\n` : " "}start the argument.
+          <Text style={[s.label, s.bandLabel]}>
+            The parts that usually start the argument
           </Text>
 
           <View style={s.part}>
-            <View style={row}>
-              <View style={left}>
-                <Text style={s.partTitle}>
-                  The receipt nobody wants to type
-                </Text>
-              </View>
-              <View style={right}>
-                <Text style={s.partText}>
-                  Photograph it. Fairshare reads the items, you say whose each
-                  one is, and nothing joins the tab until the total checks out.
-                </Text>
-              </View>
-            </View>
-            <View style={[row, { marginTop: desktop ? 44 : 28 }]}>
+            {head(
+              "The receipt nobody wants to type",
+              "Photograph it. Fairshare reads the items and you say whose each one is. Nothing joins the tab until the items add up to the total printed on the receipt.",
+            )}
+            <View style={[row, { marginTop: desktop ? 40 : 28 }]}>
               <View style={[left, { zIndex: 2 }]}>
                 <View
                   nativeID="fs-slip"
@@ -337,16 +323,12 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
                     <Text style={s.slipStrong}>TOTAL</Text>
                     <Text style={s.slipStrong}>32.92</Text>
                   </View>
-                  <View style={s.slipRow}>
-                    <Text style={s.slipText}>VISA 4417</Text>
-                    <Text style={s.slipText}>32.92</Text>
-                  </View>
-                  <Text style={[s.slipMeta, { marginTop: 16 }]}>
+                  <Text style={[s.slipMeta, { marginTop: 12 }]}>
                     5 ITEMS. THANK YOU.
                   </Text>
                 </View>
               </View>
-              <View style={[right, desktop && { marginTop: 32.5 }]}>
+              <View style={[right, desktop && { marginTop: tableTop }]}>
                 <View style={s.tableHead}>
                   <Text style={[s.tableLabel, { flex: 1 }]}>5 items found</Text>
                   <Text style={[s.tableLabel, s.who]}>Whose</Text>
@@ -369,13 +351,7 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
                       >
                         {name}
                       </Text>
-                      <Text
-                        style={[
-                          s.item,
-                          s.who,
-                          you && { color: L.ink, fontWeight: "700" },
-                        ]}
-                      >
+                      <Text style={[s.item, s.who, you && { color: L.ink }]}>
                         {whose}
                       </Text>
                       <Text
@@ -410,103 +386,111 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
           </View>
 
           <View style={s.part}>
-            <View style={row}>
-              <View style={left}>
-                <Text style={s.partTitle}>The cent that vanishes</Text>
+            {head(
+              "The cent that vanishes",
+              "A hundred dollars does not divide by three. However you split, Fairshare makes the shares add back up to the total, and says who carries the odd cent.",
+            )}
+            <View
+              style={[
+                row,
+                { marginTop: desktop ? 40 : 28 },
+                desktop && { alignItems: "stretch" },
+              ]}
+            >
+              <View style={[left, { justifyContent: "space-between" }]}>
+                {[
+                  [
+                    "Equal",
+                    "The odd cents go to the first people in the split.",
+                  ],
+                  [
+                    "Exact",
+                    "You type the amounts. It will not save until they add up.",
+                  ],
+                  [
+                    "By item",
+                    "Each receipt line is split among whoever shared it.",
+                  ],
+                ].map(([kind, note]) => (
+                  <View key={kind} style={s.note}>
+                    <Text style={[s.label, { color: L.onDeep }]}>{kind}</Text>
+                    <Text style={s.noteText}>{note}</Text>
+                  </View>
+                ))}
               </View>
               <View style={right}>
-                <Text style={s.partText}>
-                  A hundred dollars does not divide by three. However you split,
-                  Fairshare makes the shares add back up to the total, and says
-                  who carries the odd cent.
-                </Text>
-              </View>
-            </View>
-            <View style={s.equation}>
-              {(
-                [
-                  ["$33.3", "4", "you carry the odd cent"],
-                  ["+", "", ""],
-                  ["$33.33", "", "Maya"],
-                  ["+", "", ""],
-                  ["$33.33", "", "Theo"],
-                  ["=", "", ""],
-                  ["$100.00", "", "the bill"],
-                ] as [string, string, string][]
-              ).map(([text, cent, label], i) => (
-                <View key={i}>
-                  <View style={{ flexDirection: "row" }}>
-                    <Text
-                      style={[
-                        s.big,
-                        !desktop && s.bigSmall,
-                        narrow && s.bigTiny,
-                      ]}
-                    >
-                      {text}
+                {(
+                  [
+                    ["You", "", "$33.3", "4"],
+                    ["Maya", "+", "$33.33", ""],
+                    ["Theo", "+", "$33.33", ""],
+                    ["The bill", "=", "$100.00", ""],
+                  ] as [string, string, string, string][]
+                ).map(([who, sign, text, cent], i) => (
+                  <View key={i} style={[s.sumLine, i === 3 && s.sumLineTotal]}>
+                    <Text style={s.sumWho}>{who}</Text>
+                    <Text style={[s.big, s.sumSign, !desktop && s.bigSmall]}>
+                      {sign}
                     </Text>
-                    {!!cent && (
-                      <View style={s.cent}>
-                        <Text
-                          style={[
-                            s.big,
-                            { color: L.ink },
-                            !desktop && s.bigSmall,
-                            narrow && s.bigTiny,
-                          ]}
-                        >
-                          {cent}
-                        </Text>
-                      </View>
-                    )}
+                    <View style={[s.sumNum, !desktop && { width: 230 }]}>
+                      <Text style={[s.big, !desktop && s.bigSmall]}>
+                        {text}
+                      </Text>
+                      {!!cent && (
+                        <View style={s.cent}>
+                          <Text
+                            style={[
+                              s.big,
+                              { color: L.ink },
+                              !desktop && s.bigSmall,
+                            ]}
+                          >
+                            {cent}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
-                  {!!label && !narrow && (
-                    <Text style={s.bigLabel}>{label}</Text>
-                  )}
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
           </View>
 
           <View style={s.part}>
-            <View style={row}>
+            {head(
+              "The expense everyone forgets",
+              "Say it to Claude or any connected assistant while you still remember. It writes a draft, and nothing posts until you approve it.",
+            )}
+            <View style={[row, { marginTop: desktop ? 40 : 28 }]}>
               <View style={left}>
-                <Text style={s.partTitle}>The expense everyone forgets</Text>
-              </View>
-              <View style={right}>
-                <Text style={s.partText}>
-                  Say it to Claude or any connected assistant while you still
-                  remember. It writes a draft, and nothing posts until you
-                  approve it.
-                </Text>
-              </View>
-            </View>
-            <View style={[row, { marginTop: desktop ? 44 : 28 }]}>
-              <View style={left}>
-                <View style={s.saidBox}>
-                  <Text style={s.saidWho}>You, to your assistant</Text>
-                  <Text style={s.said}>
-                    “Add Friday’s dinner, $124.50, Theo paid, split three ways.”
+                <Text style={s.tableLabel}>You, to your assistant</Text>
+                <View style={{ flexDirection: "row", marginTop: 12 }}>
+                  <Text style={[s.said, s.saidMark]}>“</Text>
+                  <Text style={[s.said, { flex: 1 }]}>
+                    Add Friday’s dinner, $124.50, Theo paid, split three ways.”
                   </Text>
                 </View>
               </View>
               <View style={right}>
                 <View style={s.tableHead}>
                   <Text style={[s.tableLabel, { flex: 1 }]}>
-                    Draft, waiting for you
+                    The draft it writes back
                   </Text>
+                  <Text style={[s.tableLabel, s.price]}>Amount</Text>
                 </View>
                 <View style={s.draftRow}>
-                  <Text style={[s.item, { flex: 1, fontWeight: "600" }]}>
-                    Friday dinner
-                  </Text>
+                  <Text style={[s.item, { flex: 1 }]}>Friday dinner</Text>
+                  <Text style={[s.figure, s.onDeep]}>$124.50</Text>
+                </View>
+                <View style={s.draftRow}>
+                  <Text style={[s.item, { flex: 1 }]}>Theo paid</Text>
                   <Text style={[s.figure, s.onDeep]}>$124.50</Text>
                 </View>
                 <View style={s.draftRow}>
                   <Text style={[s.item, { flex: 1 }]}>
-                    Theo paid. Maya and you owe him
+                    Maya and you each owe him
                   </Text>
-                  <Text style={[s.figure, s.onDeep]}>$41.50 each</Text>
+                  <Text style={[s.figure, s.onDeep]}>$41.50</Text>
                 </View>
                 <View style={s.draftActions}>
                   <View style={s.approve}>
@@ -523,69 +507,6 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
         </View>
       </View>
 
-      {/* The ending the product is for. */}
-      <View style={[s.pinkBand, { zIndex: 2 }]}>
-        <View style={[s.closeInner, { paddingHorizontal: pad }, row]}>
-          <View style={left}>
-            <Text
-              style={[
-                s.square,
-                !desktop && {
-                  fontSize: narrow ? 58 : 96,
-                  lineHeight: narrow ? 60 : 98,
-                  letterSpacing: narrow ? -2 : -3,
-                  marginLeft: 0,
-                },
-              ]}
-            >
-              All square.
-            </Text>
-            <Text style={s.label}>
-              Start a tab with the people you already split with.
-            </Text>
-            <View style={s.actions}>
-              <Action label="Create an account" onPress={() => go("sign-up")} />
-              <Action line label="Sign in" onPress={() => go("sign-in")} />
-            </View>
-          </View>
-          <View
-            style={[s.sheet, desktop && { marginTop: -150 }]}
-            accessibilityLabel="Example: the tab after both payments"
-          >
-            <Text style={s.label}>Apartment 4B, November</Text>
-            <Text style={s.sheetMeta}>After both payments</Text>
-            {[
-              ["Rent, November", "You paid", "$2,850.00"],
-              ["Groceries", "Maya paid", "$86.40"],
-              ["Friday dinner", "Theo paid", "$124.50"],
-              ["Maya paid you", "Payment", "$933.90"],
-              ["Theo paid you", "Payment", "$895.80"],
-            ].map(([title, meta, amount]) => (
-              <View key={title} style={s.sheetRow}>
-                <Text style={s.sheetTitle}>{title}</Text>
-                <Text style={s.sheetNote}>{meta}</Text>
-                <Text style={[s.figure, { fontSize: 20 }]}>{amount}</Text>
-              </View>
-            ))}
-            <View style={s.sheetFoot}>
-              {["Maya", "Theo", "You"].map((name) => (
-                <View key={name} style={{ flex: 1 }}>
-                  <Text style={s.sheetNote}>{name} owes</Text>
-                  <Text
-                    style={[
-                      s.figure,
-                      { textAlign: "left", fontSize: 26, lineHeight: 34 },
-                    ]}
-                  >
-                    $0.00
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-      </View>
-
       {/* Open source, for real: how to run it yourself. */}
       <View style={[s.own, { paddingHorizontal: pad }]}>
         <View style={row}>
@@ -593,59 +514,128 @@ export function Welcome({ user, onSession, oauthRequest }: any) {
             <Text style={[s.partTitle, { color: L.ink }]}>
               Or run your own copy
             </Text>
-            <Text style={[s.partText, { color: L.soft }]}>
+            <Text style={[s.partText, { color: L.soft, marginTop: 16 }]}>
               Fairshare is open source. If you would rather hold the data
               yourself, it deploys to Vercel with a Neon Postgres database.
             </Text>
           </View>
           <View style={right}>
             {[
-              ["1", "Fork the repository", "github.com/Seif-Mamdouh/fairshare"],
+              ["1", "Fork the repository", "Seif-Mamdouh/fairshare"],
               [
                 "2",
-                "Create a Neon database and apply the schema",
+                "Create a Neon database, apply the schema",
                 "npm run db:migrate",
               ],
-              ["3", "Import the fork into Vercel and set", "DATABASE_URL"],
+              [
+                "3",
+                "Import the fork into Vercel, set the database URL",
+                "DATABASE_URL",
+              ],
             ].map(([n, text, code], i) => (
               <View
                 key={n}
                 style={[
                   s.step,
-                  i === 0 && { borderTopWidth: 3, borderColor: L.ink },
+                  i === 0 && { borderTopWidth: 4, borderColor: L.ink },
                 ]}
               >
                 <Text style={s.stepNum}>{n}</Text>
                 <Text style={s.stepText}>{text}</Text>
-                <Text style={s.stepCode}>{code}</Text>
+                <Text style={[s.figure, { fontSize: 19 }]}>{code}</Text>
               </View>
             ))}
           </View>
         </View>
-        <View style={s.footTop}>
-          <Brand tone={L.deep} />
-          <View style={s.footLinks}>
-            <Pressable accessibilityRole="link" onPress={open("")}>
-              <Text style={s.navLink}>Source on GitHub</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="link"
-              onPress={open("/blob/main/docs/DEPLOYMENT.md")}
-            >
-              <Text style={s.navLink}>Deployment guide</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="link"
-              onPress={open("/blob/main/docs/MCP_PROVIDERS.md")}
-            >
-              <Text style={s.navLink}>Connect an assistant</Text>
-            </Pressable>
+      </View>
+
+      {/* The ending the product is for. */}
+      <View style={s.close}>
+        <View style={[s.closeInner, { paddingHorizontal: pad }]}>
+          <Text
+            style={[
+              s.square,
+              !desktop && {
+                fontSize: narrow ? 58 : 96,
+                lineHeight: narrow ? 60 : 98,
+                letterSpacing: narrow ? -2 : -3,
+                marginLeft: 0,
+              },
+            ]}
+          >
+            All square.
+          </Text>
+          <View style={[row, desktop && { alignItems: "flex-end" }]}>
+            <View style={left}>
+              {["Maya", "Theo", "You"].map((name) => (
+                <View key={name} style={s.zeroRow}>
+                  <Text style={[s.ledgerTitle, s.onDeep]}>
+                    {name === "You" ? "You owe" : name + " owes"}
+                  </Text>
+                  <Text style={[s.figure, s.onDeep]}>$0.00</Text>
+                </View>
+              ))}
+            </View>
+            <View style={right}>
+              <Text style={[s.partTitle, { maxWidth: 640 }]}>
+                Start a tab with the people you already split with.
+              </Text>
+              <View style={s.actions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => go("sign-up")}
+                  style={[s.action, s.actionPink]}
+                >
+                  <Text style={[s.actionText, { color: L.ink }]}>
+                    Create an account
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => go("sign-in")}
+                  style={[s.action, s.actionOnInk]}
+                >
+                  <Text style={[s.actionText, { color: L.onDeep }]}>
+                    Sign in
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+          <View style={s.footTop}>
+            <View style={{ gap: 10, flex: 1, minWidth: 280 }}>
+              <Brand tone={L.onDeep} />
+              <Text style={s.footText}>
+                Free, with no subscription, no expense limit and every feature
+                included.
+              </Text>
+            </View>
+            <View style={s.footLinks}>
+              <Pressable accessibilityRole="link" onPress={open("")}>
+                <Text style={[s.navLink, s.onDeep]}>Source on GitHub</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="link"
+                onPress={open("/blob/main/docs/DEPLOYMENT.md")}
+              >
+                <Text style={[s.navLink, s.onDeep]}>Deployment guide</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="link"
+                onPress={open("/blob/main/docs/MCP_PROVIDERS.md")}
+              >
+                <Text style={[s.navLink, s.onDeep]}>Connect an assistant</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </View>
     </ScrollView>
   );
 }
+
+// Lines the table's rows up with the receipt's.
+const tableTop = 65;
 
 const num = { fontVariant: ["tabular-nums" as const, "lining-nums" as const] };
 const wrap = {
@@ -654,6 +644,26 @@ const wrap = {
   alignSelf: "center" as const,
 };
 const s = StyleSheet.create({
+  bandLabel: {
+    color: L.onDeep,
+    paddingBottom: 16,
+    borderBottomWidth: 4,
+    borderColor: L.onDeep,
+  },
+  sumNum: { width: 430, flexDirection: "row", justifyContent: "flex-end" },
+  close: { backgroundColor: L.ink },
+  zeroRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 11,
+    borderTopWidth: 1,
+    borderColor: L.onDeepLine,
+  },
+  actionPink: { backgroundColor: L.pink, borderColor: L.pink },
+  actionOnInk: { backgroundColor: "transparent", borderColor: L.onDeep },
+  payBig: { fontSize: 30, lineHeight: 36 },
   page: { flexGrow: 1, backgroundColor: L.page },
   header: {
     ...wrap,
@@ -678,9 +688,15 @@ const s = StyleSheet.create({
     fontWeight: "600",
     color: L.page,
   },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 28 },
+  actions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 20,
+    marginTop: 28,
+  },
   title: { fontFamily: display, fontWeight: "600", color: L.ink },
-  // One mid-size label style; column figures use the receipt's mono.
+  // Type rule: one mid-size label; mono for line items; the display face for answers.
   label: {
     fontFamily: display,
     fontSize: 26,
@@ -699,24 +715,23 @@ const s = StyleSheet.create({
     textAlign: "right",
     ...num,
   },
-  debit: { fontWeight: "400", color: L.soft },
   onDeep: { color: L.onDeep },
 
-  hero: { ...wrap, paddingTop: 22 },
+  hero: { ...wrap, paddingTop: 30 },
   intro: { fontFamily: sans, fontSize: 20, lineHeight: 30, color: L.soft },
   free: {
     fontFamily: sans,
     fontSize: 16,
+    lineHeight: 22,
     fontWeight: "500",
     color: L.ink,
-    marginTop: 18,
-    marginBottom: 44,
   },
   ledgerHead: {
     fontFamily: sans,
     fontSize: 16,
+    lineHeight: 30,
     color: L.soft,
-    paddingBottom: 12,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     borderColor: "#B9B7AA",
   },
@@ -724,7 +739,8 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "baseline",
     gap: 20,
-    paddingVertical: 15,
+    height: 72,
+    paddingTop: 20,
     borderBottomWidth: 1,
     borderColor: L.line,
   },
@@ -735,11 +751,10 @@ const s = StyleSheet.create({
     color: L.ink,
   },
   ledgerMeta: { flex: 1, fontFamily: sans, fontSize: 16, color: L.soft },
-  // The sum line is the last thing on the paper; the pink begins exactly under it.
   sumRule: { height: 4, backgroundColor: L.ink },
 
   pinkBand: { backgroundColor: L.pink },
-  sumInner: { ...wrap, paddingBottom: 52 },
+  sumInner: { ...wrap, paddingBottom: 56 },
   sumTotal: {
     fontFamily: display,
     fontSize: 176,
@@ -763,14 +778,9 @@ const s = StyleSheet.create({
     borderColor: L.onPinkLine,
   },
 
-  band: { backgroundColor: L.deep, zIndex: 1 },
-  bandInner: { ...wrap, paddingTop: 104, paddingBottom: 190 },
-  part: {
-    marginTop: 72,
-    paddingTop: 44,
-    borderTopWidth: 1,
-    borderColor: L.onDeepLine,
-  },
+  band: { backgroundColor: L.deep },
+  bandInner: { ...wrap, paddingTop: 96, paddingBottom: 120 },
+  part: { marginTop: 72 },
   partTitle: {
     fontFamily: display,
     fontSize: 44,
@@ -785,7 +795,7 @@ const s = StyleSheet.create({
     lineHeight: 30,
     color: L.onDeepSoft,
     marginTop: 8,
-    maxWidth: 620,
+    maxWidth: 640,
   },
   tableHead: {
     flexDirection: "row",
@@ -793,6 +803,7 @@ const s = StyleSheet.create({
     gap: 20,
     height: 44,
     paddingBottom: 10,
+    paddingRight: 14,
     borderBottomWidth: 1,
     borderColor: L.onDeepLine,
   },
@@ -803,27 +814,29 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 20,
-    height: 56,
+    height: 44,
+    paddingRight: 14,
     borderBottomWidth: 1,
     borderColor: L.onDeepLine,
   },
-  itemYou: { backgroundColor: L.pink, borderColor: L.pink },
-  // The marked row reaches back across the gutter to the receipt line it came from.
-  itemReach: { marginLeft: -240, paddingLeft: 240 },
+  itemYou: { backgroundColor: L.pink },
+  // The marked row runs from the receipt's left edge to the table's right edge.
+  itemReach: { marginLeft: -576, paddingLeft: 576 },
   item: { fontFamily: sans, fontSize: 19, color: L.onDeep },
   itemTotal: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     height: 76,
-    borderTopWidth: 3,
+    paddingRight: 14,
+    borderTopWidth: 4,
     borderColor: L.onDeep,
     marginTop: -1,
   },
   slip: {
-    width: 344,
+    width: 420,
     backgroundColor: L.paper,
-    paddingHorizontal: 30,
+    paddingHorizontal: 34,
     paddingTop: 30,
     paddingBottom: 40,
   },
@@ -854,66 +867,74 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    height: 34,
-    paddingHorizontal: 8,
-    marginHorizontal: -8,
+    height: 44,
   },
-  slipMarked: { backgroundColor: L.pink, marginRight: -30, paddingRight: 30 },
-  slipText: { fontFamily: mono, fontSize: 16, color: L.ink },
+  slipMarked: {
+    backgroundColor: L.pink,
+    marginHorizontal: -34,
+    paddingHorizontal: 34,
+  },
+  slipText: { fontFamily: mono, fontSize: 17, color: L.ink },
   slipStrong: {
     fontFamily: mono,
     fontSize: 19,
     fontWeight: "700",
     color: L.ink,
   },
-  equation: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginTop: 44,
+  note: {
+    gap: 6,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderColor: L.onDeepLine,
+    flex: 1,
   },
+  noteText: {
+    fontFamily: sans,
+    fontSize: 19,
+    lineHeight: 28,
+    color: L.onDeepSoft,
+    maxWidth: 420,
+  },
+  sumLine: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "flex-end",
+    paddingRight: 14,
+    borderTopWidth: 1,
+    borderColor: L.onDeepLine,
+  },
+  sumLineTotal: { borderTopWidth: 4, borderColor: L.onDeep },
+  sumWho: { flex: 1, fontFamily: sans, fontSize: 19, color: L.onDeepSoft },
+  sumSign: { width: 90, textAlign: "right" },
   big: {
     fontFamily: display,
-    fontSize: 80,
-    lineHeight: 90,
+    fontSize: 104,
+    lineHeight: 116,
     fontWeight: "600",
-    letterSpacing: -2.6,
+    letterSpacing: -3.6,
     color: L.onDeep,
     ...num,
   },
-  bigSmall: { fontSize: 44, lineHeight: 52, letterSpacing: -1 },
-  bigTiny: { fontSize: 24, lineHeight: 32, letterSpacing: -0.4 },
-  cent: { backgroundColor: L.pink, paddingHorizontal: 4, marginLeft: 2 },
-  bigLabel: {
-    fontFamily: sans,
-    fontSize: 17,
-    color: L.onDeepSoft,
-    marginTop: 8,
-  },
-  saidBox: { borderLeftWidth: 4, borderColor: L.pink, paddingLeft: 24 },
-  saidWho: {
-    fontFamily: sans,
-    fontSize: 16,
-    color: L.onDeepSoft,
-    marginBottom: 10,
-  },
+  bigSmall: { fontSize: 56, lineHeight: 66, letterSpacing: -1.6 },
+  cent: { backgroundColor: L.pink, paddingHorizontal: 5, marginLeft: 3 },
   said: {
     fontFamily: display,
-    fontSize: 34,
-    lineHeight: 42,
+    fontSize: 56,
+    lineHeight: 62,
     fontWeight: "600",
-    letterSpacing: -0.4,
+    letterSpacing: -1.2,
     color: L.onDeep,
   },
+  saidMark: { position: "absolute", left: -28 },
   draftRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 20,
     height: 56,
-    borderBottomWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: "rgba(244,242,235,0.55)",
+    paddingRight: 14,
+    borderBottomWidth: 1,
+    borderColor: L.onDeepLine,
   },
   draftActions: {
     flexDirection: "row",
@@ -924,9 +945,9 @@ const s = StyleSheet.create({
   approve: {
     height: 56,
     justifyContent: "center",
-    backgroundColor: L.onDeep,
     borderWidth: 2,
     borderColor: L.onDeep,
+    backgroundColor: L.onDeep,
     paddingHorizontal: 24,
   },
   approveText: {
@@ -952,94 +973,57 @@ const s = StyleSheet.create({
     fontFamily: sans,
     fontSize: 16,
     color: L.onDeepSoft,
-    marginLeft: 12,
+    marginLeft: 10,
   },
 
-  closeInner: { ...wrap, paddingTop: 72, paddingBottom: 72 },
+  closeInner: { ...wrap, paddingTop: 88, paddingBottom: 40 },
   square: {
     fontFamily: display,
-    fontSize: 158,
-    lineHeight: 156,
+    fontSize: 232,
+    lineHeight: 226,
     fontWeight: "600",
-    letterSpacing: -5.5,
-    color: L.ink,
-    marginLeft: -5,
-    marginBottom: 40,
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 440,
-    backgroundColor: L.paper,
-    paddingHorizontal: 28,
-    paddingTop: 26,
-    paddingBottom: 24,
-  },
-  sheetMeta: {
-    fontFamily: sans,
-    fontSize: 16,
-    color: L.soft,
-    marginBottom: 14,
-  },
-  sheetRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 12,
-    height: 48,
-    borderTopWidth: 1,
-    borderColor: L.line,
-    paddingTop: 12,
-  },
-  sheetTitle: {
-    fontFamily: sans,
-    fontSize: 17,
-    fontWeight: "600",
-    color: L.ink,
-  },
-  sheetNote: { flex: 1, fontFamily: sans, fontSize: 15, color: L.soft },
-  sheetFoot: {
-    flexDirection: "row",
-    gap: 12,
-    borderTopWidth: 3,
-    borderColor: L.ink,
-    paddingTop: 14,
+    letterSpacing: -9,
+    color: L.pink,
+    marginLeft: -8,
+    marginBottom: 56,
   },
 
-  own: { ...wrap, paddingTop: 88, paddingBottom: 40 },
+  own: { ...wrap, paddingTop: 104, paddingBottom: 112 },
   step: {
     flexDirection: "row",
     alignItems: "baseline",
     flexWrap: "wrap",
-    gap: 14,
-    paddingVertical: 15,
+    gap: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderColor: "#B9B7AA",
   },
   stepNum: {
     fontFamily: mono,
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 24,
+    fontWeight: "700",
     color: L.ink,
-    width: 18,
+    width: 28,
   },
   stepText: {
     flex: 1,
-    minWidth: 200,
+    minWidth: 220,
     fontFamily: sans,
     fontSize: 19,
     color: L.ink,
   },
-  stepCode: { fontFamily: mono, fontSize: 16, fontWeight: "500", color: L.ink },
   footTop: {
     flexDirection: "row",
     flexWrap: "wrap",
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "space-between",
     gap: 16,
-    marginTop: 88,
-    paddingTop: 22,
+    marginTop: 104,
+    paddingTop: 24,
     borderTopWidth: 1,
-    borderColor: "#B9B7AA",
+    borderColor: L.onDeepLine,
   },
+  footText: { fontFamily: sans, fontSize: 16, color: L.onDeepSoft },
   footLinks: { flexDirection: "row", flexWrap: "wrap", gap: 32 },
 
   authWrap: {

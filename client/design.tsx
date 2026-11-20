@@ -12,12 +12,12 @@ import {
 } from "react-native";
 
 export const palette = {
-  bg: "#FCF9F5",
+  bg: "#F4F2EB",
   paper: "#FFFFFF",
   ink: "#181B18",
   muted: "#676D65",
   line: "#E5E7DE",
-  green: "#426B3F",
+  green: "#1D3822",
   lime: "#DCEAC8",
   pale: "#EDF3E8",
   red: "#B54B30",
@@ -31,10 +31,11 @@ export const sans = Platform.select({
   web: "'Funnel Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   default: undefined,
 });
+// Headings share the landing page's display face on web; native keeps a system serif.
 export const serif = Platform.select({
   ios: "Georgia",
   android: "serif",
-  default: "Georgia, 'Times New Roman', serif",
+  default: "'Funnel Display', 'Helvetica Neue', Arial, sans-serif",
 });
 
 /** Finite motion, canceled on unmount or when the OS requests reduced motion. */
